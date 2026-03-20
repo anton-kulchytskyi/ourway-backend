@@ -33,4 +33,4 @@ class User(Base):
     tasks_assigned: Mapped[list["Task"]] = relationship(back_populates="assignee", foreign_keys="Task.assignee_id")  # noqa: F821
     tasks_created: Mapped[list["Task"]] = relationship(back_populates="creator", foreign_keys="Task.creator_id")  # noqa: F821
     gamification_profile: Mapped["GamificationProfile"] = relationship(back_populates="user")  # noqa: F821
-    space_memberships: Mapped[list["SpaceMember"]] = relationship(back_populates="user")  # noqa: F821
+    space_memberships: Mapped[list["SpaceMember"]] = relationship(back_populates="user", passive_deletes=True)  # noqa: F821
