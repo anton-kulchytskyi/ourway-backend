@@ -89,5 +89,12 @@ async def delete_me(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await db.delete(current_user)
+    if current_user.role == UserRole.owner and current_user.organization_id:
+        # Delete org → cascades to spaces, tasks, all org members
+        result = await db.execute(select(Organization).where(Organization.id == current_user.organization_id))
+        org = result.scalar_one_or_none()
+        if org:
+            await db.delete(org)
+    else:
+        await db.delete(current_user)
     await db.commit()
