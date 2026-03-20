@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
-from app.routers import auth
+from app.routers import auth, spaces, tasks
 
 app = FastAPI(title="OurWay API", version="0.1.0")
 
@@ -18,6 +18,8 @@ app.add_middleware(
 
 
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(spaces.router, prefix="/api/v1")
+app.include_router(tasks.router, prefix="/api/v1")
 
 
 @app.get("/")
