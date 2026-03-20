@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import aliased
 
 from app.database import get_db
 from app.core.deps import get_current_user
@@ -45,16 +46,21 @@ async def list_spaces(
     db: AsyncSession = Depends(get_db),
 ):
     _check_org(current_user)
+    OwnerMember = aliased(SpaceMember)
+    OwnerUser = aliased(User)
     result = await db.execute(
-        select(Space, SpaceMember.role)
+        select(Space, SpaceMember.role, OwnerUser.name)
         .join(SpaceMember, SpaceMember.space_id == Space.id)
+        .outerjoin(OwnerMember, (OwnerMember.space_id == Space.id) & (OwnerMember.role == SpaceMemberRole.owner))
+        .outerjoin(OwnerUser, OwnerUser.id == OwnerMember.user_id)
         .where(SpaceMember.user_id == current_user.id)
     )
     rows = result.all()
     spaces = []
-    for space, role in rows:
+    for space, role, owner_name in rows:
         d = {c.key: getattr(space, c.key) for c in space.__table__.columns}
         d["my_role"] = role
+        d["owner_name"] = owner_name
         spaces.append(d)
     return spaces
 
@@ -83,6 +89,7 @@ async def create_space(
     await db.refresh(space)
     d = {c.key: getattr(space, c.key) for c in space.__table__.columns}
     d["my_role"] = SpaceMemberRole.owner
+    d["owner_name"] = current_user.name
     return d
 
 

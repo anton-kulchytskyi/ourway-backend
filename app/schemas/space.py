@@ -18,6 +18,7 @@ class SpaceResponse(BaseModel):
     emoji: str | None
     organization_id: int
     my_role: SpaceMemberRole | None = None
+    owner_name: str | None = None
 
     model_config = {"from_attributes": True}
 
