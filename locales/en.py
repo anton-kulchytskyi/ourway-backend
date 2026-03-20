@@ -11,9 +11,11 @@ messages = {
 
     # Spaces
     "space_not_found": "Space not found",
+    "supervised_cannot_create_spaces": "Supervised children cannot create spaces",
 
     # Tasks
     "task_not_found": "Task not found",
+    "viewers_cannot_modify_tasks": "Viewers cannot modify tasks",
 
     # Gamification
     "reward_not_found": "Reward not found",

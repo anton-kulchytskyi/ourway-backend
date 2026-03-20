@@ -5,6 +5,7 @@ from sqlalchemy.orm import aliased
 
 from app.database import get_db
 from app.core.deps import get_current_user
+from app.core.i18n import t
 from app.models.user import User
 from app.models.space import Space, SpaceMember, SpaceMemberRole
 from app.schemas.space import SpaceCreate, SpaceUpdate, SpaceResponse, SpaceMemberResponse, SpaceMemberRoleUpdate, SpaceMemberAdd
@@ -72,7 +73,7 @@ async def create_space(
     db: AsyncSession = Depends(get_db),
 ):
     if current_user.role.value == "child" and current_user.autonomy_level == 1:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Supervised children cannot create spaces")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t("supervised_cannot_create_spaces", current_user.locale))
     org_id = _check_org(current_user)
     space = Space(name=body.name, emoji=body.emoji, organization_id=org_id)
     db.add(space)

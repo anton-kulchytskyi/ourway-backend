@@ -5,6 +5,7 @@ from datetime import datetime
 
 from app.database import get_db
 from app.core.deps import get_current_user
+from app.core.i18n import t
 from app.models.user import User
 from app.models.task import Task
 from app.models.space import Space, SpaceMember, SpaceMemberRole
@@ -13,7 +14,7 @@ from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
-async def _check_space_access(space_id: int, user_id: int, db: AsyncSession, require_editor: bool = False) -> Space:
+async def _check_space_access(space_id: int, user_id: int, db: AsyncSession, require_editor: bool = False, locale: str = "en") -> Space:
     result = await db.execute(
         select(Space)
         .join(SpaceMember, SpaceMember.space_id == Space.id)
@@ -28,7 +29,7 @@ async def _check_space_access(space_id: int, user_id: int, db: AsyncSession, req
         )
         m = m_result.scalar_one_or_none()
         if m and m.role == SpaceMemberRole.viewer:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Viewers cannot modify tasks")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t("viewers_cannot_modify_tasks", locale))
     return space
 
 
@@ -79,7 +80,7 @@ async def create_task(
     if not current_user.organization_id:
         raise HTTPException(status_code=400, detail="User has no organization")
 
-    await _check_space_access(body.space_id, current_user.id, db, require_editor=True)
+    await _check_space_access(body.space_id, current_user.id, db, require_editor=True, locale=current_user.locale)
 
     task = Task(
         title=body.title,
