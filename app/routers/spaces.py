@@ -6,7 +6,7 @@ from app.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.space import Space, SpaceMember, SpaceMemberRole
-from app.schemas.space import SpaceCreate, SpaceUpdate, SpaceResponse, SpaceMemberResponse, SpaceMemberRoleUpdate
+from app.schemas.space import SpaceCreate, SpaceUpdate, SpaceResponse, SpaceMemberResponse, SpaceMemberRoleUpdate, SpaceMemberAdd
 
 router = APIRouter(prefix="/spaces", tags=["spaces"])
 
@@ -65,6 +65,8 @@ async def create_space(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if current_user.role.value == "child" and current_user.autonomy_level == 1:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Supervised children cannot create spaces")
     org_id = _check_org(current_user)
     space = Space(name=body.name, emoji=body.emoji, organization_id=org_id)
     db.add(space)
@@ -129,6 +131,36 @@ async def delete_space(
 
 
 # --- Space members ---
+
+@router.post("/{space_id}/members", response_model=SpaceMemberResponse, status_code=status.HTTP_201_CREATED)
+async def add_member(
+    space_id: int,
+    body: SpaceMemberAdd,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _check_org(current_user)
+    m = await _get_membership_or_403(space_id, current_user.id, db)
+    if m.role != SpaceMemberRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only space owner can add members")
+
+    # Verify target user is in the same org
+    result = await db.execute(select(User).where(User.id == body.user_id, User.organization_id == current_user.organization_id))
+    target = result.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in your organization")
+
+    # Check not already a member
+    existing = await db.execute(select(SpaceMember).where(SpaceMember.space_id == space_id, SpaceMember.user_id == body.user_id))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already a member")
+
+    new_member = SpaceMember(space_id=space_id, user_id=body.user_id, role=body.role)
+    db.add(new_member)
+    await db.commit()
+    await db.refresh(new_member)
+    return new_member
+
 
 @router.get("/{space_id}/members", response_model=list[SpaceMemberResponse])
 async def list_members(

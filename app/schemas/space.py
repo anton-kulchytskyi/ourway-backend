@@ -33,3 +33,8 @@ class SpaceMemberResponse(BaseModel):
 
 class SpaceMemberRoleUpdate(BaseModel):
     role: SpaceMemberRole
+
+
+class SpaceMemberAdd(BaseModel):
+    user_id: int
+    role: SpaceMemberRole = SpaceMemberRole.viewer
