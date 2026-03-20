@@ -34,8 +34,8 @@ class Task(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     space_id: Mapped[int] = mapped_column(ForeignKey("spaces.id"), nullable=False)
-    creator_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    creator_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     space: Mapped["Space"] = relationship(back_populates="tasks")  # noqa: F821
     creator: Mapped["User"] = relationship(back_populates="tasks_created", foreign_keys=[creator_id])  # noqa: F821
