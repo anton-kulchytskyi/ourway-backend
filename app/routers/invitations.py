@@ -7,6 +7,7 @@ import secrets
 from app.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User, UserRole
+from app.models.organization import Organization
 from app.models.space import Space, SpaceMember, SpaceMemberRole, Invitation, InvitationRole, InvitationStatus
 from app.schemas.invitation import InvitationCreate, InvitationResponse, InvitationPublicInfo
 
@@ -102,10 +103,26 @@ async def accept_invitation(
 
     # Add user to org if not already
     if current_user.organization_id != invitation.org_id:
+        if current_user.role == UserRole.owner and current_user.organization_id:
+            # Check if their org is empty (only themselves)
+            other_members = await db.execute(
+                select(User).where(
+                    User.organization_id == current_user.organization_id,
+                    User.id != current_user.id,
+                )
+            )
+            if other_members.scalar_one_or_none():
+                raise HTTPException(status_code=400, detail="Cannot leave your org while it has other members")
+            # Delete empty org — user joins the new one
+            org_result = await db.execute(
+                select(Organization).where(Organization.id == current_user.organization_id)
+            )
+            org = org_result.scalar_one_or_none()
+            if org:
+                await db.delete(org)
+                await db.flush()
+
         current_user.organization_id = invitation.org_id
-        if current_user.role == UserRole.owner:
-            # Don't downgrade an owner of another org — edge case, reject
-            raise HTTPException(status_code=400, detail="Cannot join another org as owner")
         if current_user.role != UserRole.child:
             current_user.role = UserRole.member
 
