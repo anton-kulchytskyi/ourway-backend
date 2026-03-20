@@ -79,3 +79,23 @@ async def update_child(
     await db.commit()
     await db.refresh(child)
     return child
+
+
+@router.delete("/children/{child_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_child(
+    child_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owners can delete child accounts")
+
+    result = await db.execute(
+        select(User).where(User.id == child_id, User.organization_id == current_user.organization_id, User.role == UserRole.child)
+    )
+    child = result.scalar_one_or_none()
+    if not child:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Child not found")
+
+    await db.delete(child)
+    await db.commit()
