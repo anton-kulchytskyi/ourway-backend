@@ -73,13 +73,15 @@ async def create_space(
     # Add creator as owner
     db.add(SpaceMember(space_id=space.id, user_id=current_user.id, role=SpaceMemberRole.owner))
 
-    # If child L2: auto-add parent as viewer
-    if current_user.role.value == "child" and current_user.autonomy_level == 2 and current_user.created_by_id:
+    # Level 1 (Supervised) and 2 (Semi): auto-add parent as viewer
+    if current_user.role.value == "child" and current_user.autonomy_level in (1, 2) and current_user.created_by_id:
         db.add(SpaceMember(space_id=space.id, user_id=current_user.created_by_id, role=SpaceMemberRole.viewer))
 
     await db.commit()
     await db.refresh(space)
-    return space
+    d = {c.key: getattr(space, c.key) for c in space.__table__.columns}
+    d["my_role"] = SpaceMemberRole.owner
+    return d
 
 
 @router.get("/{space_id}", response_model=SpaceResponse)
