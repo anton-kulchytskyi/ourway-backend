@@ -46,11 +46,17 @@ async def list_spaces(
 ):
     _check_org(current_user)
     result = await db.execute(
-        select(Space)
+        select(Space, SpaceMember.role)
         .join(SpaceMember, SpaceMember.space_id == Space.id)
         .where(SpaceMember.user_id == current_user.id)
     )
-    return result.scalars().all()
+    rows = result.all()
+    spaces = []
+    for space, role in rows:
+        d = {c.key: getattr(space, c.key) for c in space.__table__.columns}
+        d["my_role"] = role
+        spaces.append(d)
+    return spaces
 
 
 @router.post("", response_model=SpaceResponse, status_code=status.HTTP_201_CREATED)
