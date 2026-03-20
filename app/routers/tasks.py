@@ -137,6 +137,9 @@ async def delete_task(
     if not current_user.organization_id:
         raise HTTPException(status_code=400, detail="User has no organization")
 
+    if current_user.role.value == "child" and current_user.autonomy_level in (1, 2):
+        raise HTTPException(status_code=403, detail="Children at this autonomy level cannot delete tasks")
+
     task = await _get_task_or_404(task_id, current_user.id, db)
     await db.delete(task)
     await db.commit()
