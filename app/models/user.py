@@ -23,9 +23,14 @@ class User(Base):
     telegram_id: Mapped[int | None] = mapped_column(Integer, nullable=True, unique=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # Child-specific fields
+    autonomy_level: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1, 2, or 3
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
     organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
 
     organization: Mapped["Organization"] = relationship(back_populates="members")  # noqa: F821
     tasks_assigned: Mapped[list["Task"]] = relationship(back_populates="assignee", foreign_keys="Task.assignee_id")  # noqa: F821
     tasks_created: Mapped[list["Task"]] = relationship(back_populates="creator", foreign_keys="Task.creator_id")  # noqa: F821
     gamification_profile: Mapped["GamificationProfile"] = relationship(back_populates="user")  # noqa: F821
+    space_memberships: Mapped[list["SpaceMember"]] = relationship(back_populates="user")  # noqa: F821

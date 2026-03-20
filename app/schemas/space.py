@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from app.models.space import SpaceMemberRole
 
 
 class SpaceCreate(BaseModel):
@@ -18,3 +19,16 @@ class SpaceResponse(BaseModel):
     organization_id: int
 
     model_config = {"from_attributes": True}
+
+
+class SpaceMemberResponse(BaseModel):
+    id: int
+    space_id: int
+    user_id: int
+    role: SpaceMemberRole
+
+    model_config = {"from_attributes": True}
+
+
+class SpaceMemberRoleUpdate(BaseModel):
+    role: SpaceMemberRole

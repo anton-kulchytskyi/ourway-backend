@@ -7,27 +7,37 @@ from app.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.task import Task
-from app.models.space import Space
+from app.models.space import Space, SpaceMember, SpaceMemberRole
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
-async def _check_space_access(space_id: int, org_id: int, db: AsyncSession) -> Space:
+async def _check_space_access(space_id: int, user_id: int, db: AsyncSession, require_editor: bool = False) -> Space:
     result = await db.execute(
-        select(Space).where(Space.id == space_id, Space.organization_id == org_id)
+        select(Space)
+        .join(SpaceMember, SpaceMember.space_id == Space.id)
+        .where(Space.id == space_id, SpaceMember.user_id == user_id)
     )
     space = result.scalar_one_or_none()
     if not space:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Space not found")
+    if require_editor:
+        m_result = await db.execute(
+            select(SpaceMember).where(SpaceMember.space_id == space_id, SpaceMember.user_id == user_id)
+        )
+        m = m_result.scalar_one_or_none()
+        if m and m.role == SpaceMemberRole.viewer:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Viewers cannot modify tasks")
     return space
 
 
-async def _get_task_or_404(task_id: int, org_id: int, db: AsyncSession) -> Task:
+async def _get_task_or_404(task_id: int, user_id: int, db: AsyncSession) -> Task:
     result = await db.execute(
         select(Task)
         .join(Space, Task.space_id == Space.id)
-        .where(Task.id == task_id, Space.organization_id == org_id)
+        .join(SpaceMember, SpaceMember.space_id == Space.id)
+        .where(Task.id == task_id, SpaceMember.user_id == user_id)
     )
     task = result.scalar_one_or_none()
     if not task:
@@ -48,7 +58,8 @@ async def list_tasks(
     query = (
         select(Task)
         .join(Space, Task.space_id == Space.id)
-        .where(Space.organization_id == current_user.organization_id)
+        .join(SpaceMember, SpaceMember.space_id == Space.id)
+        .where(SpaceMember.user_id == current_user.id)
     )
     if space_id:
         query = query.where(Task.space_id == space_id)
@@ -68,7 +79,7 @@ async def create_task(
     if not current_user.organization_id:
         raise HTTPException(status_code=400, detail="User has no organization")
 
-    await _check_space_access(body.space_id, current_user.organization_id, db)
+    await _check_space_access(body.space_id, current_user.id, db, require_editor=True)
 
     task = Task(
         title=body.title,
@@ -95,7 +106,7 @@ async def get_task(
 ):
     if not current_user.organization_id:
         raise HTTPException(status_code=400, detail="User has no organization")
-    return await _get_task_or_404(task_id, current_user.organization_id, db)
+    return await _get_task_or_404(task_id, current_user.id, db)
 
 
 @router.patch("/{task_id}", response_model=TaskResponse)
@@ -108,7 +119,7 @@ async def update_task(
     if not current_user.organization_id:
         raise HTTPException(status_code=400, detail="User has no organization")
 
-    task = await _get_task_or_404(task_id, current_user.organization_id, db)
+    task = await _get_task_or_404(task_id, current_user.id, db)
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(task, field, value)
     task.updated_at = datetime.utcnow()
@@ -126,6 +137,6 @@ async def delete_task(
     if not current_user.organization_id:
         raise HTTPException(status_code=400, detail="User has no organization")
 
-    task = await _get_task_or_404(task_id, current_user.organization_id, db)
+    task = await _get_task_or_404(task_id, current_user.id, db)
     await db.delete(task)
     await db.commit()

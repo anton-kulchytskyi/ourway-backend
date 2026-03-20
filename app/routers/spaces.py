@@ -5,8 +5,8 @@ from sqlalchemy import select
 from app.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
-from app.models.space import Space
-from app.schemas.space import SpaceCreate, SpaceUpdate, SpaceResponse
+from app.models.space import Space, SpaceMember, SpaceMemberRole
+from app.schemas.space import SpaceCreate, SpaceUpdate, SpaceResponse, SpaceMemberResponse, SpaceMemberRoleUpdate
 
 router = APIRouter(prefix="/spaces", tags=["spaces"])
 
@@ -17,9 +17,21 @@ def _check_org(user: User) -> int:
     return user.organization_id
 
 
-async def _get_space_or_404(space_id: int, org_id: int, db: AsyncSession) -> Space:
+async def _get_membership_or_403(space_id: int, user_id: int, db: AsyncSession) -> SpaceMember:
     result = await db.execute(
-        select(Space).where(Space.id == space_id, Space.organization_id == org_id)
+        select(SpaceMember).where(SpaceMember.space_id == space_id, SpaceMember.user_id == user_id)
+    )
+    m = result.scalar_one_or_none()
+    if not m:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access to this space")
+    return m
+
+
+async def _get_space_or_404(space_id: int, user_id: int, db: AsyncSession) -> Space:
+    result = await db.execute(
+        select(Space)
+        .join(SpaceMember, SpaceMember.space_id == Space.id)
+        .where(Space.id == space_id, SpaceMember.user_id == user_id)
     )
     space = result.scalar_one_or_none()
     if not space:
@@ -32,8 +44,12 @@ async def list_spaces(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    org_id = _check_org(current_user)
-    result = await db.execute(select(Space).where(Space.organization_id == org_id))
+    _check_org(current_user)
+    result = await db.execute(
+        select(Space)
+        .join(SpaceMember, SpaceMember.space_id == Space.id)
+        .where(SpaceMember.user_id == current_user.id)
+    )
     return result.scalars().all()
 
 
@@ -46,6 +62,15 @@ async def create_space(
     org_id = _check_org(current_user)
     space = Space(name=body.name, emoji=body.emoji, organization_id=org_id)
     db.add(space)
+    await db.flush()  # get space.id before commit
+
+    # Add creator as owner
+    db.add(SpaceMember(space_id=space.id, user_id=current_user.id, role=SpaceMemberRole.owner))
+
+    # If child L2: auto-add parent as viewer
+    if current_user.role.value == "child" and current_user.autonomy_level == 2 and current_user.created_by_id:
+        db.add(SpaceMember(space_id=space.id, user_id=current_user.created_by_id, role=SpaceMemberRole.viewer))
+
     await db.commit()
     await db.refresh(space)
     return space
@@ -57,8 +82,8 @@ async def get_space(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    org_id = _check_org(current_user)
-    return await _get_space_or_404(space_id, org_id, db)
+    _check_org(current_user)
+    return await _get_space_or_404(space_id, current_user.id, db)
 
 
 @router.patch("/{space_id}", response_model=SpaceResponse)
@@ -68,8 +93,11 @@ async def update_space(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    org_id = _check_org(current_user)
-    space = await _get_space_or_404(space_id, org_id, db)
+    _check_org(current_user)
+    m = await _get_membership_or_403(space_id, current_user.id, db)
+    if m.role != SpaceMemberRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only space owner can edit")
+    space = await _get_space_or_404(space_id, current_user.id, db)
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(space, field, value)
     await db.commit()
@@ -83,7 +111,77 @@ async def delete_space(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    org_id = _check_org(current_user)
-    space = await _get_space_or_404(space_id, org_id, db)
+    _check_org(current_user)
+    m = await _get_membership_or_403(space_id, current_user.id, db)
+    if m.role != SpaceMemberRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only space owner can delete")
+    space = await _get_space_or_404(space_id, current_user.id, db)
     await db.delete(space)
+    await db.commit()
+
+
+# --- Space members ---
+
+@router.get("/{space_id}/members", response_model=list[SpaceMemberResponse])
+async def list_members(
+    space_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _check_org(current_user)
+    await _get_membership_or_403(space_id, current_user.id, db)
+    result = await db.execute(select(SpaceMember).where(SpaceMember.space_id == space_id))
+    return result.scalars().all()
+
+
+@router.patch("/{space_id}/members/{user_id}", response_model=SpaceMemberResponse)
+async def update_member_role(
+    space_id: int,
+    user_id: int,
+    body: SpaceMemberRoleUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _check_org(current_user)
+    m = await _get_membership_or_403(space_id, current_user.id, db)
+    if m.role != SpaceMemberRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only space owner can change roles")
+
+    result = await db.execute(
+        select(SpaceMember).where(SpaceMember.space_id == space_id, SpaceMember.user_id == user_id)
+    )
+    target = result.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+    if target.role == SpaceMemberRole.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change owner role")
+
+    target.role = body.role
+    await db.commit()
+    await db.refresh(target)
+    return target
+
+
+@router.delete("/{space_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_member(
+    space_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _check_org(current_user)
+    m = await _get_membership_or_403(space_id, current_user.id, db)
+    if m.role != SpaceMemberRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only space owner can remove members")
+
+    result = await db.execute(
+        select(SpaceMember).where(SpaceMember.space_id == space_id, SpaceMember.user_id == user_id)
+    )
+    target = result.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+    if target.role == SpaceMemberRole.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove space owner")
+
+    await db.delete(target)
     await db.commit()
