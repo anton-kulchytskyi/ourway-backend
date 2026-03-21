@@ -13,7 +13,7 @@ class GamificationProfile(Base):
     streak_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_activity: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="gamification_profile")  # noqa: F821
     rewards: Mapped[list["Reward"]] = relationship(back_populates="profile")
