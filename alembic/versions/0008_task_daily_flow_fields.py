@@ -14,11 +14,12 @@ depends_on = None
 
 
 def upgrade():
+    op.execute("CREATE TYPE tasksource AS ENUM ('manual', 'schedule', 'family_space')")
     op.add_column("tasks", sa.Column("scheduled_date", sa.Date(), nullable=True))
     op.add_column("tasks", sa.Column("time_start", sa.Time(), nullable=True))
     op.add_column("tasks", sa.Column(
         "source",
-        sa.Enum("manual", "schedule", "family_space", name="tasksource"),
+        sa.Enum("manual", "schedule", "family_space", name="tasksource", create_type=False),
         nullable=False,
         server_default="manual",
     ))
