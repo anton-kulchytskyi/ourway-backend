@@ -1,6 +1,6 @@
-from sqlalchemy import String, Text, Integer, ForeignKey, Enum, DateTime
+from sqlalchemy import String, Text, Integer, ForeignKey, Enum, DateTime, Date, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from datetime import datetime
+from datetime import datetime, date, time
 import enum
 
 from app.database import Base
@@ -20,6 +20,12 @@ class TaskPriority(str, enum.Enum):
     high = "high"
 
 
+class TaskSource(str, enum.Enum):
+    manual = "manual"
+    schedule = "schedule"
+    family_space = "family_space"
+
+
 class Task(Base):
     __tablename__ = "tasks"
 
@@ -32,6 +38,11 @@ class Task(Base):
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Daily flow fields
+    scheduled_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    time_start: Mapped[time | None] = mapped_column(Time, nullable=True)
+    source: Mapped[TaskSource] = mapped_column(Enum(TaskSource), default=TaskSource.manual, nullable=False)
 
     space_id: Mapped[int] = mapped_column(ForeignKey("spaces.id"), nullable=False)
     creator_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)

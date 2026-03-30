@@ -37,6 +37,12 @@ def create_refresh_token(user_id: int) -> str:
                          timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
 
 
+def create_telegram_link_token(user_id: int) -> str:
+    """Short-lived token (24h) for linking a Telegram account via deep link."""
+    return _create_token({"sub": str(user_id), "type": "tg_link"},
+                         timedelta(hours=24))
+
+
 def decode_token(token: str) -> dict[str, Any]:
     """Raises JWTError if invalid or expired."""
     return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])

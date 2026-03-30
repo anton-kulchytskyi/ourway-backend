@@ -24,4 +24,45 @@ messages = {
     # General
     "forbidden": "Access denied",
     "not_found": "Not found",
+    "plan_already_completed": "Plan is already completed",
+
+    # Schedule / Events / Daily plan permissions
+    "children_cannot_create_schedules": "Children cannot create schedules",
+    "only_owner_can_create_for_others": "Only owner can create schedules for others",
+    "children_cannot_create_events": "Children cannot create events",
+    "children_cannot_edit_events": "Children cannot edit events",
+    "children_cannot_delete_events": "Children cannot delete events",
+
+    # Morning briefing (bot notification)
+    "morning_greeting": "☀️ <b>Good morning, {name}!</b>",
+    "morning_free_day": "Today is a free day 🎉",
+    "morning_footer": "Go for it! You can do it 💪",
+
+    # Evening ritual (bot notification)
+    "evening_ritual_prompt": "🌙 <b>Time to plan tomorrow with {name}!</b>",
+    "evening_ritual_body": "Review the schedule and tasks together.",
+
+    # Bot — account linking
+    "start_not_linked": (
+        "👋 Hello! I'm OurWay bot.\n\n"
+        "To get started, link your account:\n"
+        "Open the app → Settings → Connect Telegram"
+    ),
+    "start_linked": "👋 Hello, {name}! Your account is already linked.",
+    "account_linked_success": "✅ Account linked! Welcome, {name}.",
+    "account_already_linked": "This Telegram account is already linked to another user.",
+    "invalid_link_token": "Invalid or expired link. Please generate a new one in the app.",
+
+    # Bot — tasks
+    "my_tasks_empty": "You have no active tasks right now.",
+    "my_tasks_header": "📋 <b>Your tasks:</b>",
+    "task_done_success": "✅ Task marked as done!",
+    "task_done_points": "✅ Done! +{points} pts",
+
+    # Task statuses
+    "status_backlog": "Backlog",
+    "status_todo": "To Do",
+    "status_in_progress": "In Progress",
+    "status_blocked": "Blocked",
+    "status_done": "Done",
 }

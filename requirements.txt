@@ -8,3 +8,5 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
 pydantic[email]==2.10.3
+apscheduler==3.10.4
+aiohttp==3.10.10

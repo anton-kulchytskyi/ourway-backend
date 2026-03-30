@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, ForeignKey, Enum, DateTime, UniqueConstraint
+from sqlalchemy import String, Integer, ForeignKey, Enum, DateTime, UniqueConstraint, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 import enum
@@ -47,6 +47,7 @@ class SpaceMember(Base):
     role: Mapped[SpaceMemberRole] = mapped_column(
         Enum(SpaceMemberRole, name="spacememberrole"), default=SpaceMemberRole.editor, nullable=False
     )
+    auto_add_to_child_day: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     space: Mapped["Space"] = relationship(back_populates="members")
     user: Mapped["User"] = relationship(back_populates="space_memberships")  # noqa: F821

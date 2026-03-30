@@ -1,5 +1,6 @@
-from sqlalchemy import String, Boolean, Enum, ForeignKey, Integer
+from sqlalchemy import String, Boolean, Enum, ForeignKey, Integer, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+import datetime
 import enum
 
 from app.database import Base
@@ -26,6 +27,14 @@ class User(Base):
     # Child-specific fields
     autonomy_level: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1, 2, or 3
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    # Managed profile (child without own account, ~under 10)
+    is_managed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    managed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    # Daily flow notification times
+    morning_brief_time: Mapped[datetime.time] = mapped_column(Time, default=datetime.time(7, 30), nullable=False)
+    evening_ritual_time: Mapped[datetime.time] = mapped_column(Time, default=datetime.time(21, 0), nullable=False)
 
     organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
 

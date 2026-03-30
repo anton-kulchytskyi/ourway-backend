@@ -1,15 +1,81 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from pydantic import BaseModel
+import os
 
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.space import SpaceMember, SpaceMemberRole
 from app.schemas.user import UserResponse, CreateChildRequest, UpdateChildRequest
-from app.core.security import hash_password
+from app.core.security import hash_password, create_telegram_link_token, decode_token
 from app.core.deps import get_current_user
+from jose import JWTError
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+class TelegramLinkResponse(BaseModel):
+    token: str
+    deep_link: str
+
+
+class TelegramLinkRequest(BaseModel):
+    token: str
+    telegram_id: int
+
+
+@router.get("/me/telegram/link-token", response_model=TelegramLinkResponse)
+async def get_telegram_link_token(
+    current_user: User = Depends(get_current_user),
+):
+    """Generate a 24h deep link for connecting Telegram account."""
+    token = create_telegram_link_token(current_user.id)
+    bot_username = os.getenv("TG_BOT_USERNAME", "ourway_bot")
+    deep_link = f"https://t.me/{bot_username}?start={token}"
+    return TelegramLinkResponse(token=token, deep_link=deep_link)
+
+
+@router.post("/telegram/link", response_model=UserResponse)
+async def link_telegram(
+    body: TelegramLinkRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Called by the bot after user clicks the deep link. Links telegram_id to the user."""
+    try:
+        payload = decode_token(body.token)
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired link token")
+
+    if payload.get("type") != "tg_link":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token type")
+
+    user_id = int(payload["sub"])
+
+    # Check telegram_id not already taken by another user
+    existing = await db.execute(select(User).where(User.telegram_id == body.telegram_id))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Telegram account already linked to another user")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    user.telegram_id = body.telegram_id
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+@router.delete("/me/telegram", status_code=status.HTTP_204_NO_CONTENT)
+async def unlink_telegram(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Unlink Telegram account from current user."""
+    current_user.telegram_id = None
+    await db.commit()
 
 
 @router.post("/children", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
