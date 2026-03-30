@@ -15,12 +15,19 @@ depends_on = None
 
 def upgrade():
     op.add_column("users", sa.Column("is_managed", sa.Boolean(), nullable=False, server_default="false"))
-    op.add_column("users", sa.Column("managed_by", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True))
+    op.add_column("users", sa.Column("managed_by", sa.Integer(), nullable=True))
     op.add_column("users", sa.Column("morning_brief_time", sa.Time(), nullable=False, server_default="07:30:00"))
     op.add_column("users", sa.Column("evening_ritual_time", sa.Time(), nullable=False, server_default="21:00:00"))
+    op.create_foreign_key(
+        "fk_users_managed_by",
+        "users", "users",
+        ["managed_by"], ["id"],
+        ondelete="SET NULL",
+    )
 
 
 def downgrade():
+    op.drop_constraint("fk_users_managed_by", "users", type_="foreignkey")
     op.drop_column("users", "evening_ritual_time")
     op.drop_column("users", "morning_brief_time")
     op.drop_column("users", "managed_by")
