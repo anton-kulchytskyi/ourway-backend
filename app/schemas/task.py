@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, date, time
 from app.models.task import TaskStatus, TaskPriority
 
 
@@ -10,6 +10,7 @@ class TaskCreate(BaseModel):
     priority: TaskPriority = TaskPriority.medium
     points: int = 0
     due_date: datetime | None = None
+    scheduled_date: date | None = None
     space_id: int
     assignee_id: int | None = None
 
@@ -21,6 +22,7 @@ class TaskUpdate(BaseModel):
     priority: TaskPriority | None = None
     points: int | None = None
     due_date: datetime | None = None
+    scheduled_date: date | None = None
     assignee_id: int | None = None
 
 
@@ -32,6 +34,8 @@ class TaskResponse(BaseModel):
     priority: TaskPriority
     points: int
     due_date: datetime | None
+    scheduled_date: date | None
+    time_start: time | None
     created_at: datetime
     updated_at: datetime
     space_id: int

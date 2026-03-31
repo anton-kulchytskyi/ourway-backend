@@ -99,6 +99,7 @@ async def create_task(
         priority=body.priority,
         points=body.points,
         due_date=body.due_date,
+        scheduled_date=body.scheduled_date,
         space_id=body.space_id,
         creator_id=current_user.id,
         assignee_id=body.assignee_id if body.assignee_id is not None else current_user.id,
