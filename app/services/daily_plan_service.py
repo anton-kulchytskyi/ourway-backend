@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, and_, literal
+from sqlalchemy import select, or_, and_, literal, any_
 from datetime import date
 
 from app.models.daily_plan import DailyPlan, DailyPlanStatus
@@ -39,7 +39,7 @@ async def get_assembled_day(user_id: int, target_date: date, db: AsyncSession) -
     schedules_result = await db.execute(
         select(Schedule).where(
             Schedule.user_id == user_id,
-            literal(weekday).op("= ANY")(Schedule.weekdays),
+            weekday == any_(Schedule.weekdays),
             or_(Schedule.valid_from == None, Schedule.valid_from <= target_date),  # noqa: E711
             or_(Schedule.valid_until == None, Schedule.valid_until >= target_date),  # noqa: E711
         )

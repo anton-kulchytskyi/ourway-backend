@@ -70,7 +70,10 @@ async def list_tasks(
     if status:
         query = query.where(Task.status == status)
     if mine:
-        query = query.where(Task.assignee_id == current_user.id)
+        query = query.where(
+            (Task.assignee_id == current_user.id) |
+            ((Task.assignee_id == None) & (Task.creator_id == current_user.id))  # noqa: E711
+        )
     elif assignee_id:
         query = query.where(Task.assignee_id == assignee_id)
 
@@ -98,7 +101,7 @@ async def create_task(
         due_date=body.due_date,
         space_id=body.space_id,
         creator_id=current_user.id,
-        assignee_id=body.assignee_id,
+        assignee_id=body.assignee_id if body.assignee_id is not None else current_user.id,
     )
     db.add(task)
     await db.commit()
