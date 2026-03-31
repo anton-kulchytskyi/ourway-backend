@@ -18,13 +18,15 @@ logger = logging.getLogger(__name__)
 TG_API = "https://api.telegram.org/bot{token}/sendMessage"
 
 
-async def _send(chat_id: int, text: str) -> None:
+async def _send(chat_id: int, text: str, reply_markup: dict | None = None) -> None:
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
         logger.warning("TELEGRAM_BOT_TOKEN not set — skipping notification")
         return
     url = TG_API.format(token=token)
-    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    payload: dict = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     async with aiohttp.ClientSession() as session:
         async with session.post(url, json=payload) as resp:
             if resp.status != 200:
@@ -79,4 +81,5 @@ async def send_evening_ritual_prompt(owner: User, child: User) -> None:
         + "\n\n"
         + t("evening_ritual_body", locale)
     )
+    text += "\n\n👉 /tonight"
     await _send(owner.telegram_id, text)
