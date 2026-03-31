@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pydantic import BaseModel
 from datetime import date, datetime, time
 from app.models.daily_plan import DailyPlanStatus
