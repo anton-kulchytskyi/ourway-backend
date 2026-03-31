@@ -91,6 +91,12 @@ class BotLoginRequest(BaseModel):
     telegram_id: int
 
 
+class TelegramRegisterRequest(BaseModel):
+    telegram_id: int
+    name: str
+    locale: str = "en"
+
+
 @router.post("/bot-login", response_model=TokenResponse)
 async def bot_login(
     body: BotLoginRequest,
@@ -109,6 +115,44 @@ async def bot_login(
 
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
+
+    return TokenResponse(
+        access_token=create_access_token(user.id),
+        refresh_token=create_refresh_token(user.id),
+    )
+
+
+@router.post("/telegram-register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def telegram_register(
+    body: TelegramRegisterRequest,
+    x_bot_secret: str = Header(..., alias="X-Bot-Secret"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Register a new user directly via Telegram (no email/password required)."""
+    expected = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    if not expected or x_bot_secret != expected:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid bot secret")
+
+    existing = await db.execute(select(User).where(User.telegram_id == body.telegram_id))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Telegram account already registered")
+
+    org = Organization(name=f"{body.name}'s Family", default_locale=body.locale)
+    db.add(org)
+    await db.flush()
+
+    user = User(
+        email=None,
+        hashed_password=None,
+        name=body.name,
+        locale=body.locale,
+        role=UserRole.owner,
+        organization_id=org.id,
+        telegram_id=body.telegram_id,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
 
     return TokenResponse(
         access_token=create_access_token(user.id),
