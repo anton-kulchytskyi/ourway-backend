@@ -1,4 +1,4 @@
-from sqlalchemy import String, Boolean, Enum, ForeignKey, Integer, Time
+from sqlalchemy import String, Boolean, Enum, ForeignKey, Integer, BigInteger, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import datetime
 import enum
@@ -21,7 +21,7 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.member, nullable=False)
     locale: Mapped[str] = mapped_column(String(10), default="en", nullable=False)
-    telegram_id: Mapped[int | None] = mapped_column(Integer, nullable=True, unique=True)
+    telegram_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, unique=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Child-specific fields
