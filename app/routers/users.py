@@ -9,6 +9,7 @@ from app.models.user import User, UserRole
 from app.models.space import SpaceMember, SpaceMemberRole
 from app.schemas.user import UserResponse, CreateChildRequest, UpdateChildRequest
 from app.core.security import hash_password, create_telegram_link_token, decode_token
+from app.models.organization import Organization
 from app.core.deps import get_current_user
 from jose import JWTError
 
@@ -165,3 +166,56 @@ async def delete_child(
 
     await db.delete(child)
     await db.commit()
+
+
+class BotCreateChildRequest(BaseModel):
+    name: str
+    autonomy_level: int = 1
+    is_managed: bool = False  # True = no TG account (parent manages everything)
+
+
+class BotCreateChildResponse(BaseModel):
+    child: UserResponse
+    invite_link: str | None = None  # Only set when is_managed=False
+
+
+@router.post("/children/bot-create", response_model=BotCreateChildResponse, status_code=status.HTTP_201_CREATED)
+async def bot_create_child(
+    body: BotCreateChildRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a child profile via Telegram bot. Owner only."""
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owners can create child accounts")
+
+    if body.autonomy_level not in (1, 2, 3):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="autonomy_level must be 1, 2, or 3")
+
+    # Auto-generate a unique placeholder email
+    import time
+    placeholder_email = f"child_{int(time.time())}_{current_user.id}@ourway.app"
+
+    child = User(
+        email=placeholder_email,
+        hashed_password=None,
+        name=body.name,
+        role=UserRole.child,
+        locale=current_user.locale,
+        organization_id=current_user.organization_id,
+        autonomy_level=body.autonomy_level,
+        created_by_id=current_user.id,
+        is_managed=body.is_managed,
+        managed_by=current_user.id if body.is_managed else None,
+    )
+    db.add(child)
+    await db.commit()
+    await db.refresh(child)
+
+    invite_link = None
+    if not body.is_managed:
+        bot_username = os.getenv("TG_BOT_USERNAME", "ourway_bot")
+        token = create_telegram_link_token(child.id)
+        invite_link = f"https://t.me/{bot_username}?start={token}"
+
+    return BotCreateChildResponse(child=child, invite_link=invite_link)
