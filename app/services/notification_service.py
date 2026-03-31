@@ -71,6 +71,21 @@ async def send_morning_briefing(user: User, db: AsyncSession) -> None:
     await _send(user.telegram_id, "\n".join(lines))
 
 
+async def send_task_assigned(task, assignee: User, assigner: User) -> None:
+    """Notify a user that a task was assigned to them."""
+    if not assignee.telegram_id:
+        return
+    if assignee.id == assigner.id:
+        return  # Don't notify when you assign to yourself
+    locale = assignee.locale or "en"
+    text = (
+        f"📋 <b>{t('task_assigned_title', locale)}</b>\n\n"
+        f"<b>{task.title}</b>\n"
+        f"{t('task_assigned_by', locale).format(name=assigner.name)}"
+    )
+    await _send(assignee.telegram_id, text)
+
+
 async def send_evening_ritual_prompt(owner: User, child: User) -> None:
     """Remind owner to plan tomorrow with child."""
     if not owner.telegram_id:

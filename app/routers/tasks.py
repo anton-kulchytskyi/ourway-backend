@@ -10,6 +10,7 @@ from app.models.user import User
 from app.models.task import Task
 from app.models.space import Space, SpaceMember, SpaceMemberRole
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
+from app.services.notification_service import send_task_assigned
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -102,6 +103,13 @@ async def create_task(
     db.add(task)
     await db.commit()
     await db.refresh(task)
+
+    if body.assignee_id and body.assignee_id != current_user.id:
+        assignee_result = await db.execute(select(User).where(User.id == body.assignee_id))
+        assignee = assignee_result.scalar_one_or_none()
+        if assignee:
+            await send_task_assigned(task, assignee, current_user)
+
     return task
 
 
@@ -127,11 +135,24 @@ async def update_task(
         raise HTTPException(status_code=400, detail="User has no organization")
 
     task = await _get_task_or_404(task_id, current_user.id, db)
+    prev_assignee_id = task.assignee_id
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(task, field, value)
     task.updated_at = datetime.utcnow()
     await db.commit()
     await db.refresh(task)
+
+    new_assignee_id = task.assignee_id
+    if (
+        new_assignee_id
+        and new_assignee_id != prev_assignee_id
+        and new_assignee_id != current_user.id
+    ):
+        assignee_result = await db.execute(select(User).where(User.id == new_assignee_id))
+        assignee = assignee_result.scalar_one_or_none()
+        if assignee:
+            await send_task_assigned(task, assignee, current_user)
+
     return task
 
 

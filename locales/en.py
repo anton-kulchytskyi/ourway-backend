@@ -59,6 +59,10 @@ messages = {
     "task_done_success": "✅ Task marked as done!",
     "task_done_points": "✅ Done! +{points} pts",
 
+    # Task assignment notification
+    "task_assigned_title": "New task assigned to you",
+    "task_assigned_by": "Assigned by: {name}",
+
     # Task statuses
     "status_backlog": "Backlog",
     "status_todo": "To Do",

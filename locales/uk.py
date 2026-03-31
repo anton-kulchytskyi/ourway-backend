@@ -59,6 +59,10 @@ messages = {
     "task_done_success": "✅ Задачу виконано!",
     "task_done_points": "✅ Виконано! +{points} балів",
 
+    # Task assignment notification
+    "task_assigned_title": "Тобі призначено нову задачу",
+    "task_assigned_by": "Призначив(ла): {name}",
+
     # Task statuses
     "status_backlog": "Бэклог",
     "status_todo": "До виконання",
