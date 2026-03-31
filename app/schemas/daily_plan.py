@@ -1,21 +1,21 @@
-from __future__ import annotations
+import datetime
 
 from pydantic import BaseModel
-from datetime import date, datetime, time
+
 from app.models.daily_plan import DailyPlanStatus
 
 
 class DailyPlanCreate(BaseModel):
     user_id: int | None = None  # defaults to current user; owner can set a child's id
-    date: date
+    date: datetime.date
 
 
 class DailyPlanResponse(BaseModel):
     id: int
     user_id: int
-    date: date
+    date: datetime.date
     status: DailyPlanStatus
-    confirmed_at: datetime | None
+    confirmed_at: datetime.datetime | None
     confirmed_by: int | None
 
     model_config = {"from_attributes": True}
@@ -25,21 +25,21 @@ class DailyPlanResponse(BaseModel):
 
 class ScheduleItemOut(BaseModel):
     title: str
-    time_start: time
-    time_end: time
+    time_start: datetime.time
+    time_end: datetime.time
 
 
 class EventItemOut(BaseModel):
     id: int
     title: str
-    time_start: time | None
-    time_end: time | None
+    time_start: datetime.time | None
+    time_end: datetime.time | None
 
 
 class TaskItemOut(BaseModel):
     id: int
     title: str
-    time_start: time | None
+    time_start: datetime.time | None
     status: str
     points: int
 

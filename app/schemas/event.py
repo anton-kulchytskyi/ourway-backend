@@ -1,17 +1,16 @@
-from __future__ import annotations
+import datetime
 
 from pydantic import BaseModel, model_validator
-from datetime import date, time
 
 
 class EventCreate(BaseModel):
     title: str
-    date: date | None = None
-    time_start: time | None = None
-    time_end: time | None = None
+    date: datetime.date | None = None
+    time_start: datetime.time | None = None
+    time_end: datetime.time | None = None
     is_fixed: bool = True
     duration_min: int | None = None
-    find_before: date | None = None
+    find_before: datetime.date | None = None
     participants: list[int] = []
 
     @model_validator(mode="after")
@@ -23,12 +22,12 @@ class EventCreate(BaseModel):
 
 class EventUpdate(BaseModel):
     title: str | None = None
-    date: date | None = None
-    time_start: time | None = None
-    time_end: time | None = None
+    date: datetime.date | None = None
+    time_start: datetime.time | None = None
+    time_end: datetime.time | None = None
     is_fixed: bool | None = None
     duration_min: int | None = None
-    find_before: date | None = None
+    find_before: datetime.date | None = None
     participants: list[int] | None = None
 
 
@@ -36,12 +35,12 @@ class EventResponse(BaseModel):
     id: int
     title: str
     organization_id: int
-    date: date | None
-    time_start: time | None
-    time_end: time | None
+    date: datetime.date | None
+    time_start: datetime.time | None
+    time_end: datetime.time | None
     is_fixed: bool
     duration_min: int | None
-    find_before: date | None
+    find_before: datetime.date | None
     participants: list[int]
     created_by: int | None
 
