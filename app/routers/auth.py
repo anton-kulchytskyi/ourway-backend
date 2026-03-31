@@ -128,7 +128,7 @@ async def telegram_register(
     x_bot_secret: str = Header(..., alias="X-Bot-Secret"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Register a new user directly via Telegram (no email/password required)."""
+    """Register a new user directly via Telegram. Auto-generates email as tg_{id}@ourway.app."""
     expected = os.getenv("TELEGRAM_BOT_TOKEN", "")
     if not expected or x_bot_secret != expected:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid bot secret")
@@ -142,7 +142,7 @@ async def telegram_register(
     await db.flush()
 
     user = User(
-        email=None,
+        email=f"tg_{body.telegram_id}@ourway.app",
         hashed_password=None,
         name=body.name,
         locale=body.locale,
