@@ -50,6 +50,8 @@ async def _get_task_or_404(task_id: int, user_id: int, db: AsyncSession) -> Task
 async def list_tasks(
     space_id: int | None = None,
     status: str | None = None,
+    assignee_id: int | None = None,
+    mine: bool = False,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -66,6 +68,10 @@ async def list_tasks(
         query = query.where(Task.space_id == space_id)
     if status:
         query = query.where(Task.status == status)
+    if mine:
+        query = query.where(Task.assignee_id == current_user.id)
+    elif assignee_id:
+        query = query.where(Task.assignee_id == assignee_id)
 
     result = await db.execute(query)
     return result.scalars().all()
