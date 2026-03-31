@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import os
+
+from fastapi import APIRouter, Depends, Header, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from jose import JWTError
@@ -82,6 +85,35 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+class BotLoginRequest(BaseModel):
+    telegram_id: int
+
+
+@router.post("/bot-login", response_model=TokenResponse)
+async def bot_login(
+    body: BotLoginRequest,
+    x_bot_secret: str = Header(..., alias="X-Bot-Secret"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Called by the Telegram bot to get a JWT for a linked user."""
+    expected = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    if not expected or x_bot_secret != expected:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid bot secret")
+
+    result = await db.execute(select(User).where(User.telegram_id == body.telegram_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No user linked to this Telegram account")
+
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
+
+    return TokenResponse(
+        access_token=create_access_token(user.id),
+        refresh_token=create_refresh_token(user.id),
+    )
 
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
