@@ -28,8 +28,14 @@ async def get_day(
     if user_id and current_user.role == UserRole.child:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    target_id = user_id if user_id else current_user.id
-    return await get_assembled_day(target_id, date, db)
+    if user_id and user_id != current_user.id:
+        target_result = await db.execute(select(User).where(User.id == user_id))
+        target = target_result.scalar_one_or_none()
+        if not target:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        return await get_assembled_day(target, date, db)
+
+    return await get_assembled_day(current_user, date, db)
 
 
 @router.post("/confirm", response_model=DailyPlanResponse)

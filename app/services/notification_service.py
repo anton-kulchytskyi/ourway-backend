@@ -45,7 +45,7 @@ async def send_morning_briefing(user: User, db: AsyncSession) -> None:
 
     locale = user.locale or "en"
     today = date.today()
-    day_view = await get_assembled_day(user.id, today, db)
+    day_view = await get_assembled_day(user, today, db)
 
     lines = [t("morning_greeting", locale).format(name=user.name), ""]
 
