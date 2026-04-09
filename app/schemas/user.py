@@ -26,7 +26,7 @@ class TokenResponse(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
-    email: str
+    email: str | None = None
     name: str
     role: UserRole
     locale: str
