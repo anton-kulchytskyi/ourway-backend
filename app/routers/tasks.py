@@ -4,7 +4,7 @@ from sqlalchemy import select
 from datetime import datetime
 
 from app.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_org_user
 from app.core.i18n import t
 from app.models.user import User
 from app.models.task import Task
@@ -53,11 +53,9 @@ async def list_tasks(
     status: str | None = None,
     assignee_id: int | None = None,
     mine: bool = False,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not current_user.organization_id:
-        raise HTTPException(status_code=400, detail="User has no organization")
 
     query = (
         select(Task)
@@ -84,11 +82,9 @@ async def list_tasks(
 @router.post("", response_model=TaskResponse, status_code=201)
 async def create_task(
     body: TaskCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not current_user.organization_id:
-        raise HTTPException(status_code=400, detail="User has no organization")
 
     await _check_space_access(body.space_id, current_user.id, db, require_editor=True, locale=current_user.locale)
 
@@ -120,11 +116,9 @@ async def create_task(
 @router.get("/{task_id}", response_model=TaskResponse)
 async def get_task(
     task_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not current_user.organization_id:
-        raise HTTPException(status_code=400, detail="User has no organization")
     return await _get_task_or_404(task_id, current_user.id, db)
 
 
@@ -132,11 +126,9 @@ async def get_task(
 async def update_task(
     task_id: int,
     body: TaskUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not current_user.organization_id:
-        raise HTTPException(status_code=400, detail="User has no organization")
 
     task = await _get_task_or_404(task_id, current_user.id, db)
     prev_assignee_id = task.assignee_id
@@ -163,11 +155,9 @@ async def update_task(
 @router.delete("/{task_id}", status_code=204)
 async def delete_task(
     task_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not current_user.organization_id:
-        raise HTTPException(status_code=400, detail="User has no organization")
 
     if current_user.role.value == "child" and current_user.autonomy_level in (1, 2):
         raise HTTPException(status_code=403, detail="Children at this autonomy level cannot delete tasks")

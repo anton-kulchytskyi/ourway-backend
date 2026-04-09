@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import secrets
 
 from app.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_current_org_user
 from app.models.user import User, UserRole
 from app.models.organization import Organization
 from app.models.space import Space, SpaceMember, SpaceMemberRole, Invitation, InvitationRole, InvitationStatus
@@ -19,11 +19,9 @@ INVITE_EXPIRES_DAYS = 7
 @router.post("", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
 async def create_invitation(
     body: InvitationCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not current_user.organization_id:
-        raise HTTPException(status_code=400, detail="User has no organization")
 
     # Check user is owner of the space
     m_result = await db.execute(

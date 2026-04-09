@@ -4,7 +4,7 @@ from sqlalchemy import select, or_
 from datetime import date
 
 from app.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_org_user
 from app.models.user import User, UserRole
 from app.models.event import Event
 from app.schemas.event import EventCreate, EventUpdate, EventResponse
@@ -25,12 +25,10 @@ async def _get_event_or_404(event_id: int, current_user: User, db: AsyncSession)
 @router.get("", response_model=list[EventResponse])
 async def list_events(
     date: date | None = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List events for the current user's organization, optionally filtered by date."""
-    if not current_user.organization_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User has no organization")
 
     query = select(Event).where(Event.organization_id == current_user.organization_id)
     if date:
@@ -49,13 +47,11 @@ async def list_events(
 @router.post("", response_model=EventResponse, status_code=201)
 async def create_event(
     body: EventCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
     if current_user.role == UserRole.child:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Children cannot create events")
-    if not current_user.organization_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User has no organization")
 
     event = Event(
         title=body.title,
@@ -79,7 +75,7 @@ async def create_event(
 async def update_event(
     event_id: int,
     body: EventUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
     if current_user.role == UserRole.child:
@@ -96,7 +92,7 @@ async def update_event(
 @router.delete("/{event_id}", status_code=204)
 async def delete_event(
     event_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
     if current_user.role == UserRole.child:

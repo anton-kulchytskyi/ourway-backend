@@ -4,19 +4,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import aliased
 
 from app.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_org_user
 from app.core.i18n import t
 from app.models.user import User
 from app.models.space import Space, SpaceMember, SpaceMemberRole
 from app.schemas.space import SpaceCreate, SpaceUpdate, SpaceResponse, SpaceMemberResponse, SpaceMemberRoleUpdate, SpaceMemberAdd
 
 router = APIRouter(prefix="/spaces", tags=["spaces"])
-
-
-def _check_org(user: User) -> int:
-    if not user.organization_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User has no organization")
-    return user.organization_id
 
 
 async def _get_membership_or_403(space_id: int, user_id: int, db: AsyncSession) -> SpaceMember:
@@ -43,10 +37,9 @@ async def _get_space_or_404(space_id: int, user_id: int, db: AsyncSession) -> Sp
 
 @router.get("", response_model=list[SpaceResponse])
 async def list_spaces(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org(current_user)
     OwnerMember = aliased(SpaceMember)
     OwnerUser = aliased(User)
     result = await db.execute(
@@ -69,13 +62,12 @@ async def list_spaces(
 @router.post("", response_model=SpaceResponse, status_code=status.HTTP_201_CREATED)
 async def create_space(
     body: SpaceCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
     if current_user.role.value == "child" and current_user.autonomy_level == 1:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t("supervised_cannot_create_spaces", current_user.locale))
-    org_id = _check_org(current_user)
-    space = Space(name=body.name, emoji=body.emoji, organization_id=org_id)
+    space = Space(name=body.name, emoji=body.emoji, organization_id=current_user.organization_id)
     db.add(space)
     await db.flush()  # get space.id before commit
 
@@ -97,10 +89,9 @@ async def create_space(
 @router.get("/{space_id}", response_model=SpaceResponse)
 async def get_space(
     space_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org(current_user)
     return await _get_space_or_404(space_id, current_user.id, db)
 
 
@@ -108,10 +99,9 @@ async def get_space(
 async def update_space(
     space_id: int,
     body: SpaceUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org(current_user)
     m = await _get_membership_or_403(space_id, current_user.id, db)
     if m.role != SpaceMemberRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only space owner can edit")
@@ -126,10 +116,9 @@ async def update_space(
 @router.delete("/{space_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_space(
     space_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org(current_user)
     m = await _get_membership_or_403(space_id, current_user.id, db)
     if m.role != SpaceMemberRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only space owner can delete")
@@ -144,10 +133,9 @@ async def delete_space(
 async def add_member(
     space_id: int,
     body: SpaceMemberAdd,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org(current_user)
     m = await _get_membership_or_403(space_id, current_user.id, db)
     if m.role != SpaceMemberRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only space owner can add members")
@@ -173,10 +161,9 @@ async def add_member(
 @router.get("/{space_id}/members", response_model=list[SpaceMemberResponse])
 async def list_members(
     space_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org(current_user)
     await _get_membership_or_403(space_id, current_user.id, db)
     result = await db.execute(select(SpaceMember).where(SpaceMember.space_id == space_id))
     return result.scalars().all()
@@ -187,10 +174,9 @@ async def update_member_role(
     space_id: int,
     user_id: int,
     body: SpaceMemberRoleUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org(current_user)
     m = await _get_membership_or_403(space_id, current_user.id, db)
     if m.role != SpaceMemberRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only space owner can change roles")
@@ -214,10 +200,9 @@ async def update_member_role(
 async def remove_member(
     space_id: int,
     user_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org(current_user)
     m = await _get_membership_or_403(space_id, current_user.id, db)
     if m.role != SpaceMemberRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only space owner can remove members")

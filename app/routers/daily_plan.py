@@ -4,7 +4,7 @@ from sqlalchemy import select
 from datetime import date, datetime, timezone
 
 from app.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_current_org_user
 from app.models.user import User, UserRole
 from app.models.daily_plan import DailyPlan, DailyPlanStatus
 from app.schemas.daily_plan import DailyPlanCreate, DailyPlanResponse, DayView, FamilyMemberDay
@@ -60,13 +60,11 @@ async def confirm_day(
 @router.get("/family", response_model=list[FamilyMemberDay])
 async def get_family_day_view(
     date: date,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_org_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get assembled daily plans for all family members (owner/member only)."""
     if current_user.role == UserRole.child:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    if not current_user.organization_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User has no organization")
 
     return await get_family_day(current_user.organization_id, date, db)

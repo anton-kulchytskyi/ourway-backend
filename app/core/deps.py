@@ -29,3 +29,12 @@ async def get_current_user(
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
+
+
+async def get_current_org_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Like get_current_user but also requires the user to belong to an organization."""
+    if not current_user.organization_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User has no organization")
+    return current_user
