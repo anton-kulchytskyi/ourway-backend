@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, and_, literal, any_
+from sqlalchemy import select, or_, and_, literal, any_, delete
 from datetime import date
 
 from app.models.daily_plan import DailyPlan, DailyPlanStatus
@@ -24,6 +24,13 @@ async def _get_or_create_plan(user_id: int, target_date: date, db: AsyncSession)
     )
     plan = result.scalar_one_or_none()
     if not plan:
+        await db.execute(
+            delete(DailyPlan).where(
+                DailyPlan.user_id == user_id,
+                DailyPlan.date < target_date,
+                DailyPlan.status == DailyPlanStatus.draft,
+            )
+        )
         plan = DailyPlan(user_id=user_id, date=target_date, status=DailyPlanStatus.draft)
         db.add(plan)
         await db.commit()
