@@ -43,6 +43,12 @@ def create_telegram_link_token(user_id: int) -> str:
                          timedelta(hours=24))
 
 
+def create_web_login_token(user_id: int) -> str:
+    """Short-lived token (15 min) for one-time web login via magic link from bot."""
+    return _create_token({"sub": str(user_id), "type": "web_login"},
+                         timedelta(minutes=15))
+
+
 def decode_token(token: str) -> dict[str, Any]:
     """Raises JWTError if invalid or expired."""
     return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
