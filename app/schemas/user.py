@@ -30,6 +30,7 @@ class UserResponse(BaseModel):
     name: str
     role: UserRole
     locale: str
+    timezone: str = "UTC"
     autonomy_level: int | None = None
     created_by_id: int | None = None
 
