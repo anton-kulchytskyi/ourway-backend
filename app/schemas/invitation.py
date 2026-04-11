@@ -4,7 +4,7 @@ from app.models.space import InvitationRole, InvitationStatus
 
 
 class InvitationCreate(BaseModel):
-    space_id: int
+    space_id: int | None = None
     role: InvitationRole = InvitationRole.editor
 
 
@@ -22,8 +22,8 @@ class InvitationResponse(BaseModel):
 
 class InvitationPublicInfo(BaseModel):
     token: str
-    space_name: str
+    org_name: str
+    space_name: str | None
     space_emoji: str | None
     invited_by_name: str
-    role: InvitationRole
     expires_at: datetime
