@@ -32,7 +32,7 @@ async def get_telegram_link_token(
 ):
     """Generate a 24h deep link for connecting Telegram account."""
     token = create_telegram_link_token(current_user.id)
-    bot_username = os.getenv("TG_BOT_USERNAME", "ourway_bot")
+    bot_username = os.getenv("TG_BOT_USERNAME", "ourway_tasks_bot")
     deep_link = f"https://t.me/{bot_username}?start={token}"
     return TelegramLinkResponse(token=token, deep_link=deep_link)
 
@@ -214,7 +214,7 @@ async def bot_create_child(
 
     invite_link = None
     if not body.is_managed:
-        bot_username = os.getenv("TG_BOT_USERNAME", "ourway_bot")
+        bot_username = os.getenv("TG_BOT_USERNAME", "ourway_tasks_bot")
         token = create_telegram_link_token(child.id)
         invite_link = f"https://t.me/{bot_username}?start={token}"
 
