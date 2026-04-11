@@ -32,6 +32,9 @@ class User(Base):
     is_managed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     managed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
+    # Timezone (IANA, e.g. 'Europe/Warsaw')
+    timezone: Mapped[str] = mapped_column(String(50), default="UTC", nullable=False)
+
     # Daily flow notification times
     morning_brief_time: Mapped[datetime.time] = mapped_column(Time, default=datetime.time(7, 30), nullable=False)
     evening_ritual_time: Mapped[datetime.time] = mapped_column(Time, default=datetime.time(21, 0), nullable=False)

@@ -7,7 +7,8 @@ import os
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.space import SpaceMember, SpaceMemberRole
-from app.schemas.user import UserResponse, CreateChildRequest, UpdateChildRequest
+from app.schemas.user import UserResponse, CreateChildRequest, UpdateChildRequest, UpdateMeRequest, MeResponse
+import datetime as dt
 from app.core.security import hash_password, create_telegram_link_token, decode_token
 from app.models.organization import Organization
 from app.core.deps import get_current_user
@@ -67,6 +68,60 @@ async def link_telegram(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+@router.get("/me", response_model=MeResponse)
+async def get_me(current_user: User = Depends(get_current_user)):
+    return MeResponse(
+        id=current_user.id,
+        email=current_user.email,
+        name=current_user.name,
+        role=current_user.role,
+        locale=current_user.locale,
+        timezone=current_user.timezone,
+        morning_brief_time=current_user.morning_brief_time.strftime("%H:%M"),
+        evening_ritual_time=current_user.evening_ritual_time.strftime("%H:%M"),
+        autonomy_level=current_user.autonomy_level,
+    )
+
+
+@router.patch("/me", response_model=MeResponse)
+async def update_me(
+    body: UpdateMeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if body.name is not None:
+        current_user.name = body.name
+    if body.locale is not None:
+        current_user.locale = body.locale
+    if body.timezone is not None:
+        current_user.timezone = body.timezone
+    if body.morning_brief_time is not None:
+        try:
+            parsed = dt.time.fromisoformat(body.morning_brief_time)
+            current_user.morning_brief_time = parsed
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid morning_brief_time format, use HH:MM")
+    if body.evening_ritual_time is not None:
+        try:
+            parsed = dt.time.fromisoformat(body.evening_ritual_time)
+            current_user.evening_ritual_time = parsed
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid evening_ritual_time format, use HH:MM")
+    await db.commit()
+    await db.refresh(current_user)
+    return MeResponse(
+        id=current_user.id,
+        email=current_user.email,
+        name=current_user.name,
+        role=current_user.role,
+        locale=current_user.locale,
+        timezone=current_user.timezone,
+        morning_brief_time=current_user.morning_brief_time.strftime("%H:%M"),
+        evening_ritual_time=current_user.evening_ritual_time.strftime("%H:%M"),
+        autonomy_level=current_user.autonomy_level,
+    )
 
 
 @router.delete("/me/telegram", status_code=status.HTTP_204_NO_CONTENT)

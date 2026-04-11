@@ -45,3 +45,25 @@ class CreateChildRequest(BaseModel):
 
 class UpdateChildRequest(BaseModel):
     autonomy_level: int
+
+
+class UpdateMeRequest(BaseModel):
+    name: str | None = None
+    locale: str | None = None
+    timezone: str | None = None
+    morning_brief_time: str | None = None   # "HH:MM"
+    evening_ritual_time: str | None = None  # "HH:MM"
+
+
+class MeResponse(BaseModel):
+    id: int
+    email: str | None = None
+    name: str
+    role: str
+    locale: str
+    timezone: str
+    morning_brief_time: str
+    evening_ritual_time: str
+    autonomy_level: int | None = None
+
+    model_config = {"from_attributes": True}
