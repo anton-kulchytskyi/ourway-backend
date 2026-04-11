@@ -97,6 +97,8 @@ async def update_me(
         current_user.locale = body.locale
     if body.timezone is not None:
         current_user.timezone = body.timezone
+        from app.core.scheduler import ensure_timezone_jobs
+        ensure_timezone_jobs(body.timezone)
     if body.morning_brief_time is not None:
         try:
             parsed = dt.time.fromisoformat(body.morning_brief_time)
