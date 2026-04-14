@@ -3,12 +3,14 @@ import os
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from jose import JWTError
 
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.organization import Organization
+from app.models.space import Space
+from app.models.task import Task
 from app.schemas.user import LoginRequest, RefreshRequest, TokenResponse, UserResponse
 from app.core.security import verify_password, create_access_token, create_refresh_token, create_web_login_token, decode_token
 from app.core.deps import get_current_user
@@ -195,11 +197,24 @@ async def delete_me(
     db: AsyncSession = Depends(get_db),
 ):
     if current_user.role == UserRole.owner and current_user.organization_id:
-        # Delete org → cascades to spaces, tasks, all org members
-        result = await db.execute(select(Organization).where(Organization.id == current_user.organization_id))
-        org = result.scalar_one_or_none()
-        if org:
-            await db.delete(org)
+        org_id = current_user.organization_id
+
+        # Delete in FK dependency order using bulk SQL to avoid ORM SET NULL behaviour
+        # (Space.organization_id and Task.space_id have no ondelete so ORM would try SET NULL)
+
+        # 1. Tasks (reference spaces)
+        space_ids_subq = select(Space.id).where(Space.organization_id == org_id)
+        await db.execute(delete(Task).where(Task.space_id.in_(space_ids_subq)))
+
+        # 2. Spaces (space_members cascade at DB level via ondelete=CASCADE)
+        await db.execute(delete(Space).where(Space.organization_id == org_id))
+
+        # 3. Users in org (schedules, daily_plans, gamification_profiles, space_memberships
+        #    all have ondelete=CASCADE so they are cleaned up automatically by the DB)
+        await db.execute(delete(User).where(User.organization_id == org_id))
+
+        # 4. Organization (events and invitations have ondelete=CASCADE)
+        await db.execute(delete(Organization).where(Organization.id == org_id))
     else:
         await db.delete(current_user)
     await db.commit()
