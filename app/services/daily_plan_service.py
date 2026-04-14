@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, any_, delete
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from datetime import date
 
 from app.models.daily_plan import DailyPlan, DailyPlanStatus
@@ -24,6 +25,7 @@ async def _get_or_create_plan(user_id: int, target_date: date, db: AsyncSession)
     )
     plan = result.scalar_one_or_none()
     if not plan:
+        # Clean up old draft plans for this user
         await db.execute(
             delete(DailyPlan).where(
                 DailyPlan.user_id == user_id,
@@ -31,10 +33,17 @@ async def _get_or_create_plan(user_id: int, target_date: date, db: AsyncSession)
                 DailyPlan.status == DailyPlanStatus.draft,
             )
         )
-        plan = DailyPlan(user_id=user_id, date=target_date, status=DailyPlanStatus.draft)
-        db.add(plan)
+        # Use ON CONFLICT DO NOTHING to handle concurrent requests for the same user+date
+        await db.execute(
+            pg_insert(DailyPlan)
+            .values(user_id=user_id, date=target_date, status=DailyPlanStatus.draft)
+            .on_conflict_do_nothing(index_elements=["user_id", "date"])
+        )
         await db.commit()
-        await db.refresh(plan)
+        result = await db.execute(
+            select(DailyPlan).where(DailyPlan.user_id == user_id, DailyPlan.date == target_date)
+        )
+        plan = result.scalar_one()
     return plan
 
 
