@@ -37,6 +37,8 @@ messages = {
     "morning_greeting": "☀️ <b>Доброго ранку, {name}!</b>",
     "morning_free_day": "Сьогодні вільний день 🎉",
     "morning_footer": "Вперед! Ти можеш 💪",
+    "task_overdue": "прострочено {days}д",
+    "task_due_today": "сьогодні",
 
     # Evening ritual (bot notification)
     "evening_ritual_prompt": "🌙 <b>Час планувати завтра з {name}!</b>",

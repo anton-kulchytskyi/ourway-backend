@@ -7,11 +7,24 @@ import logging
 import aiohttp
 from datetime import date
 
+from datetime import date as date_type
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.core.i18n import t
 from app.services.daily_plan_service import get_assembled_day
+
+_PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
+
+
+def _task_urgency_key(task, today: date_type):
+    due = task.due_date
+    prio = _PRIORITY_ORDER.get(task.priority or "", 2)
+    if due and due < today:
+        return (0, due, prio)
+    if due and due == today:
+        return (1, date_type.min, prio)
+    return (2, due or date_type.max, prio)
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +72,21 @@ async def send_morning_briefing(user: User, db: AsyncSession) -> None:
             lines.append(f"📅{time_str} {event.title}")
 
     if day_view.tasks:
-        for task in day_view.tasks:
+        sorted_tasks = sorted(day_view.tasks, key=lambda task: _task_urgency_key(task, today))
+        for task in sorted_tasks:
             time_str = f" {_fmt_time(task.time_start)}" if task.time_start else ""
-            lines.append(f"✅{time_str} {task.title}")
+            due = task.due_date
+            if due and due < today:
+                days_over = (today - due).days
+                label = f" · {t('task_overdue', locale).format(days=days_over)}"
+                emoji = "🔥"
+            elif due and due == today:
+                label = f" · {t('task_due_today', locale)}"
+                emoji = "🔥"
+            else:
+                label = f" · {due.strftime('%b %d')}" if due else ""
+                emoji = "📝"
+            lines.append(f"{emoji}{time_str} {task.title}{label}")
 
     if not (day_view.schedule_items or day_view.events or day_view.tasks):
         lines.append(t("morning_free_day", locale))

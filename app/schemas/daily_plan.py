@@ -42,6 +42,8 @@ class TaskItemOut(BaseModel):
     time_start: datetime.time | None
     status: str
     points: int
+    due_date: datetime.date | None = None
+    priority: str | None = None
 
 
 class DayView(BaseModel):

@@ -37,6 +37,8 @@ messages = {
     "morning_greeting": "☀️ <b>Good morning, {name}!</b>",
     "morning_free_day": "Today is a free day 🎉",
     "morning_footer": "Go for it! You can do it 💪",
+    "task_overdue": "overdue {days}d",
+    "task_due_today": "today",
 
     # Evening ritual (bot notification)
     "evening_ritual_prompt": "🌙 <b>Time to plan tomorrow with {name}!</b>",
