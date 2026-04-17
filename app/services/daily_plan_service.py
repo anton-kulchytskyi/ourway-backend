@@ -114,7 +114,9 @@ async def _fetch_task_items(user_id: int, target_date: date, is_child: bool, db:
     return [
         TaskItemOut(
             id=t.id, title=t.title, time_start=t.time_start, status=t.status,
-            points=t.points, due_date=t.due_date, priority=t.priority,
+            points=t.points,
+            due_date=t.due_date.date() if hasattr(t.due_date, "date") else t.due_date,
+            priority=t.priority,
         )
         for t in sorted(tasks, key=lambda t: (t.time_start is None, t.time_start))
     ]
