@@ -40,6 +40,7 @@ messages = {
 
     # Evening ritual (bot notification)
     "evening_ritual_prompt": "🌙 <b>Час планувати завтра з {name}!</b>",
+    "evening_ritual_prompt_multi": "🌙 <b>Час планувати завтра з дітьми!</b>",
     "evening_ritual_body": "Перегляньте розклад і задачі разом.",
 
     # Bot — account linking

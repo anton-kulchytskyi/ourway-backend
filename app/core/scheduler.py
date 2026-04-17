@@ -100,14 +100,14 @@ async def evening_ritual_job(tz: str) -> None:
                 )
             )
             children = children_result.scalars().all()
-            for child in children:
-                try:
-                    await send_evening_ritual_prompt(owner, child)
-                except Exception:
-                    logger.exception(
-                        "Failed to send evening ritual to owner %s for child %s",
-                        owner.id, child.id,
-                    )
+            if not children:
+                continue
+            try:
+                await send_evening_ritual_prompt(owner, list(children))
+            except Exception:
+                logger.exception(
+                    "Failed to send evening ritual to owner %s", owner.id,
+                )
 
 
 async def setup_scheduler() -> None:

@@ -86,15 +86,15 @@ async def send_task_assigned(task, assignee: User, assigner: User) -> None:
     await _send(assignee.telegram_id, text)
 
 
-async def send_evening_ritual_prompt(owner: User, child: User) -> None:
-    """Remind owner to plan tomorrow with child."""
-    if not owner.telegram_id:
+async def send_evening_ritual_prompt(owner: User, children: list[User]) -> None:
+    """Remind owner to plan tomorrow with their children (one message for all)."""
+    if not owner.telegram_id or not children:
         return
     locale = owner.locale or "en"
-    text = (
-        t("evening_ritual_prompt", locale).format(name=child.name)
-        + "\n\n"
-        + t("evening_ritual_body", locale)
-    )
-    text += "\n\n👉 /tonight"
+    if len(children) == 1:
+        header = t("evening_ritual_prompt", locale).format(name=children[0].name)
+    else:
+        names_list = "\n".join(f"• {c.name}" for c in children)
+        header = t("evening_ritual_prompt_multi", locale) + "\n\n" + names_list
+    text = header + "\n\n" + t("evening_ritual_body", locale) + "\n\n👉 /tonight"
     await _send(owner.telegram_id, text)
