@@ -13,6 +13,7 @@ class TaskCreate(BaseModel):
     scheduled_date: date | None = None
     space_id: int
     assignee_id: int | None = None
+    progress_total: int | None = None
 
 
 class TaskUpdate(BaseModel):
@@ -24,6 +25,8 @@ class TaskUpdate(BaseModel):
     due_date: datetime | None = None
     scheduled_date: date | None = None
     assignee_id: int | None = None
+    progress_current: int | None = None
+    progress_total: int | None = None
 
 
 class TaskResponse(BaseModel):
@@ -41,5 +44,7 @@ class TaskResponse(BaseModel):
     space_id: int
     creator_id: int
     assignee_id: int | None
+    progress_current: int | None = None
+    progress_total: int | None = None
 
     model_config = {"from_attributes": True}

@@ -95,24 +95,29 @@ async def update_me(
         current_user.name = body.name
     if body.locale is not None:
         current_user.locale = body.locale
+    reschedule = False
     if body.timezone is not None:
         current_user.timezone = body.timezone
-        from app.core.scheduler import ensure_timezone_jobs
-        ensure_timezone_jobs(body.timezone)
+        reschedule = True
     if body.morning_brief_time is not None:
         try:
             parsed = dt.time.fromisoformat(body.morning_brief_time)
             current_user.morning_brief_time = parsed
+            reschedule = True
         except ValueError:
             raise HTTPException(status_code=422, detail="Invalid morning_brief_time format, use HH:MM")
     if body.evening_ritual_time is not None:
         try:
             parsed = dt.time.fromisoformat(body.evening_ritual_time)
             current_user.evening_ritual_time = parsed
+            reschedule = True
         except ValueError:
             raise HTTPException(status_code=422, detail="Invalid evening_ritual_time format, use HH:MM")
     await db.commit()
     await db.refresh(current_user)
+    if reschedule:
+        from app.core.scheduler import ensure_user_jobs
+        ensure_user_jobs(current_user)
     return MeResponse(
         id=current_user.id,
         email=current_user.email,

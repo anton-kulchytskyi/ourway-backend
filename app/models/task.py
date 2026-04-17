@@ -44,6 +44,9 @@ class Task(Base):
     time_start: Mapped[time | None] = mapped_column(Time, nullable=True)
     source: Mapped[TaskSource] = mapped_column(Enum(TaskSource), default=TaskSource.manual, nullable=False)
 
+    progress_current: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    progress_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     space_id: Mapped[int] = mapped_column(ForeignKey("spaces.id"), nullable=False)
     creator_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)

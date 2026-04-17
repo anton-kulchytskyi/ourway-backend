@@ -9,130 +9,116 @@ from app.models.user import User, UserRole
 logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler(timezone="UTC")
 
-MORNING_HOUR = 7
-MORNING_MINUTE = 30
-EVENING_HOUR = 21
-EVENING_MINUTE = 0
+
+def _morning_job_id(user_id: int) -> str:
+    return f"morning_user_{user_id}"
 
 
-def _tz_job_id(tz: str, prefix: str) -> str:
-    """Stable job ID for a timezone, e.g. 'morning_Europe_Warsaw'."""
-    return f"{prefix}_{tz.replace('/', '_').replace(' ', '_')}"
+def _evening_job_id(user_id: int) -> str:
+    return f"evening_user_{user_id}"
 
 
-def ensure_timezone_jobs(tz: str) -> None:
-    """Add morning + evening jobs for *tz* if not already registered.
+def ensure_user_jobs(user: User) -> None:
+    """Create or replace morning + evening jobs for a single user.
 
-    Safe to call at any time (e.g. from PATCH /users/me when user changes tz).
+    Safe to call any time — replaces existing jobs. Only schedules if the
+    user has a telegram_id (no point sending briefings without TG).
     """
-    morning_id = _tz_job_id(tz, "morning")
-    evening_id = _tz_job_id(tz, "evening")
+    if not user.telegram_id:
+        return
 
-    if not scheduler.get_job(morning_id):
-        try:
-            scheduler.add_job(
-                morning_briefing_job,
-                CronTrigger(hour=MORNING_HOUR, minute=MORNING_MINUTE, timezone=tz),
-                id=morning_id,
-                args=[tz],
-                replace_existing=True,
-            )
-            logger.info("Registered morning job for timezone %s", tz)
-        except Exception:
-            logger.exception("Failed to register morning job for timezone %s", tz)
+    tz = user.timezone or "UTC"
 
-    if not scheduler.get_job(evening_id):
-        try:
-            scheduler.add_job(
-                evening_ritual_job,
-                CronTrigger(hour=EVENING_HOUR, minute=EVENING_MINUTE, timezone=tz),
-                id=evening_id,
-                args=[tz],
-                replace_existing=True,
-            )
-            logger.info("Registered evening job for timezone %s", tz)
-        except Exception:
-            logger.exception("Failed to register evening job for timezone %s", tz)
+    try:
+        scheduler.add_job(
+            morning_briefing_user_job,
+            CronTrigger(
+                hour=user.morning_brief_time.hour,
+                minute=user.morning_brief_time.minute,
+                timezone=tz,
+            ),
+            id=_morning_job_id(user.id),
+            args=[user.id],
+            replace_existing=True,
+        )
+    except Exception:
+        logger.exception("Failed to register morning job for user %s", user.id)
+
+    try:
+        scheduler.add_job(
+            evening_ritual_user_job,
+            CronTrigger(
+                hour=user.evening_ritual_time.hour,
+                minute=user.evening_ritual_time.minute,
+                timezone=tz,
+            ),
+            id=_evening_job_id(user.id),
+            args=[user.id],
+            replace_existing=True,
+        )
+    except Exception:
+        logger.exception("Failed to register evening job for user %s", user.id)
 
 
-async def morning_briefing_job(tz: str) -> None:
-    """07:30 local time — send morning briefing to users in *tz*."""
-    logger.info("Running morning briefing job for timezone %s", tz)
+def remove_user_jobs(user_id: int) -> None:
+    """Remove scheduled jobs for a user (e.g. on account deletion)."""
+    for job_id in (_morning_job_id(user_id), _evening_job_id(user_id)):
+        job = scheduler.get_job(job_id)
+        if job:
+            job.remove()
+
+
+async def morning_briefing_user_job(user_id: int) -> None:
     from app.services.notification_service import send_morning_briefing
     async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(User).where(
-                User.telegram_id != None,  # noqa: E711
-                User.is_active == True,    # noqa: E712
-                User.timezone == tz,
-            )
-        )
-        users = result.scalars().all()
-        for user in users:
-            try:
-                await send_morning_briefing(user, db)
-            except Exception:
-                logger.exception("Failed to send morning briefing to user %s", user.id)
+        user = await db.get(User, user_id)
+        if not user or not user.is_active or not user.telegram_id:
+            return
+        try:
+            await send_morning_briefing(user, db)
+        except Exception:
+            logger.exception("Failed to send morning briefing to user %s", user_id)
 
 
-async def evening_ritual_job(tz: str) -> None:
-    """21:00 local time — remind owners in *tz* to plan tomorrow with children."""
-    logger.info("Running evening ritual job for timezone %s", tz)
+async def evening_ritual_user_job(user_id: int) -> None:
     from app.services.notification_service import send_evening_ritual_prompt
     async with AsyncSessionLocal() as db:
-        owners_result = await db.execute(
+        user = await db.get(User, user_id)
+        if not user or not user.is_active or not user.telegram_id:
+            return
+        if user.role != UserRole.owner or not user.organization_id:
+            return
+        children_result = await db.execute(
             select(User).where(
-                User.role == UserRole.owner,
-                User.telegram_id != None,  # noqa: E711
-                User.is_active == True,    # noqa: E712
-                User.timezone == tz,
+                User.organization_id == user.organization_id,
+                User.role == UserRole.child,
             )
         )
-        owners = owners_result.scalars().all()
-
-        for owner in owners:
-            if not owner.organization_id:
-                continue
-            children_result = await db.execute(
-                select(User).where(
-                    User.organization_id == owner.organization_id,
-                    User.role == UserRole.child,
-                )
-            )
-            children = children_result.scalars().all()
-            if not children:
-                continue
-            try:
-                await send_evening_ritual_prompt(owner, list(children))
-            except Exception:
-                logger.exception(
-                    "Failed to send evening ritual to owner %s", owner.id,
-                )
+        children = children_result.scalars().all()
+        if not children:
+            return
+        try:
+            await send_evening_ritual_prompt(user, list(children))
+        except Exception:
+            logger.exception("Failed to send evening ritual to user %s", user_id)
 
 
 async def setup_scheduler() -> None:
-    """Register per-timezone jobs for all timezones currently in the DB.
-
-    UTC is always registered. Other timezones are loaded from users.timezone.
-    """
-    # Always ensure UTC jobs exist
-    ensure_timezone_jobs("UTC")
-
-    # Load all unique timezones from DB
+    """Register per-user jobs for all users with a telegram_id."""
     try:
         async with AsyncSessionLocal() as db:
             result = await db.execute(
-                select(User.timezone).where(User.timezone != None).distinct()  # noqa: E711
+                select(User).where(
+                    User.telegram_id != None,  # noqa: E711
+                    User.is_active == True,    # noqa: E712
+                )
             )
-            timezones = {row[0] for row in result.all() if row[0]}
+            users = result.scalars().all()
     except Exception:
-        logger.exception("Failed to load timezones from DB — falling back to UTC only")
-        timezones = {"UTC"}
+        logger.exception("Failed to load users from DB for scheduler setup")
+        return
 
-    for tz in timezones:
-        ensure_timezone_jobs(tz)
+    for user in users:
+        ensure_user_jobs(user)
 
-    logger.info(
-        "Scheduler jobs registered for timezones: %s",
-        sorted(timezones),
-    )
+    logger.info("Scheduler jobs registered for %d users", len(users))
