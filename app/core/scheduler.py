@@ -86,19 +86,21 @@ async def evening_ritual_user_job(user_id: int) -> None:
         user = await db.get(User, user_id)
         if not user or not user.is_active or not user.telegram_id:
             return
-        if user.role != UserRole.owner or not user.organization_id:
+        if user.role == UserRole.child:
             return
-        children_result = await db.execute(
-            select(User).where(
-                User.organization_id == user.organization_id,
-                User.role == UserRole.child,
+        if not user.organization_id:
+            return
+        children: list[User] = []
+        if user.role == UserRole.owner:
+            children_result = await db.execute(
+                select(User).where(
+                    User.organization_id == user.organization_id,
+                    User.role == UserRole.child,
+                )
             )
-        )
-        children = children_result.scalars().all()
-        if not children:
-            return
+            children = list(children_result.scalars().all())
         try:
-            await send_evening_ritual_prompt(user, list(children))
+            await send_evening_ritual_prompt(user, children)
         except Exception:
             logger.exception("Failed to send evening ritual to user %s", user_id)
 

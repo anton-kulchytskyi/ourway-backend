@@ -129,6 +129,9 @@ async def telegram_register(
     await db.commit()
     await db.refresh(user)
 
+    from app.core.scheduler import ensure_user_jobs
+    ensure_user_jobs(user)
+
     return TokenResponse(
         access_token=create_access_token(user.id),
         refresh_token=create_refresh_token(user.id),
