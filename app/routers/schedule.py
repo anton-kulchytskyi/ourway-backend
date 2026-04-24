@@ -16,8 +16,8 @@ async def _get_schedule_or_404(schedule_id: int, current_user: User, db: AsyncSe
     schedule = result.scalar_one_or_none()
     if not schedule:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
-    # owner can access any schedule in their org; others only their own
-    if current_user.role != UserRole.owner and schedule.user_id != current_user.id:
+    # owner and member can access any schedule; children only their own
+    if current_user.role == UserRole.child and schedule.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return schedule
 
@@ -51,8 +51,8 @@ async def create_schedule(
 
     target_user_id = body.user_id if body.user_id else current_user.id
 
-    # Only owner can create schedules for other users
-    if target_user_id != current_user.id and current_user.role != UserRole.owner:
+    # Only owner and member can create schedules for other users
+    if target_user_id != current_user.id and current_user.role not in (UserRole.owner, UserRole.member):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner can create schedules for others")
 
     schedule = Schedule(
