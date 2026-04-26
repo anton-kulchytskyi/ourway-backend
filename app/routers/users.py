@@ -9,7 +9,7 @@ from app.models.user import User, UserRole
 from app.models.space import SpaceMember, SpaceMemberRole
 from app.schemas.user import UserResponse, CreateChildRequest, UpdateChildRequest, UpdateMeRequest, MeResponse
 import datetime as dt
-from app.core.security import hash_password, create_telegram_link_token, decode_token
+from app.core.security import hash_password, create_telegram_link_token, decode_token, create_child_tg_token, verify_child_tg_token
 from app.models.organization import Organization
 from app.core.deps import get_current_user
 from jose import JWTError
@@ -43,16 +43,25 @@ async def link_telegram(
     body: TelegramLinkRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Called by the bot after user clicks the deep link. Links telegram_id to the user."""
-    try:
-        payload = decode_token(body.token)
-    except JWTError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired link token")
+    """Called by the bot after user clicks the deep link. Links telegram_id to the user.
 
-    if payload.get("type") != "tg_link":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token type")
-
-    user_id = int(payload["sub"])
+    Accepts two token formats:
+    - ch{id}_{hmac} — child invite token (Telegram deep-link safe, no dots)
+    - JWT tg_link   — web settings link (legacy, for adult users)
+    """
+    # Try child HMAC token first (Telegram-safe format)
+    child_id = verify_child_tg_token(body.token)
+    if child_id is not None:
+        user_id = child_id
+    else:
+        # Fall back to JWT (web-based linking for adult users)
+        try:
+            payload = decode_token(body.token)
+        except JWTError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired link token")
+        if payload.get("type") != "tg_link":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token type")
+        user_id = int(payload["sub"])
 
     # Check telegram_id not already taken by another user
     existing = await db.execute(select(User).where(User.telegram_id == body.telegram_id))
@@ -277,7 +286,7 @@ async def bot_create_child(
     invite_link = None
     if not body.is_managed:
         bot_username = os.getenv("TG_BOT_USERNAME", "ourway_tasks_bot")
-        token = create_telegram_link_token(child.id)
+        token = create_child_tg_token(child.id)
         invite_link = f"https://t.me/{bot_username}?start={token}"
 
     return BotCreateChildResponse(child=child, invite_link=invite_link)

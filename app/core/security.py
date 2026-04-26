@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
+import hmac
+import hashlib
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -52,3 +54,30 @@ def create_web_login_token(user_id: int) -> str:
 def decode_token(token: str) -> dict[str, Any]:
     """Raises JWTError if invalid or expired."""
     return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+
+def create_child_tg_token(child_id: int) -> str:
+    """Create a Telegram-compatible token for child account linking.
+
+    Format: ch{child_id}_{16_hex} — only alphanumeric + underscore,
+    safe to use in Telegram ?start= deep links (no dots like JWT).
+    """
+    msg = f"child:{child_id}"
+    sig = hmac.new(SECRET_KEY.encode(), msg.encode(), hashlib.sha256).hexdigest()[:16]
+    return f"ch{child_id}_{sig}"
+
+
+def verify_child_tg_token(token: str) -> int | None:
+    """Verify a child TG link token. Returns child_id or None if invalid."""
+    if not token.startswith("ch") or "_" not in token:
+        return None
+    prefix, sig = token.split("_", 1)
+    try:
+        child_id = int(prefix[2:])
+    except ValueError:
+        return None
+    msg = f"child:{child_id}"
+    expected = hmac.new(SECRET_KEY.encode(), msg.encode(), hashlib.sha256).hexdigest()[:16]
+    if not hmac.compare_digest(sig, expected):
+        return None
+    return child_id
