@@ -67,6 +67,9 @@ messages = {
     "task_assigned_title": "New task assigned to you",
     "task_assigned_by": "Assigned by: {name}",
 
+    # Evening — plan confirmed notification to child
+    "plan_ready_for_child": "🌙 <b>{name} made your plan for tomorrow!</b>\n\nUse /today to see it.",
+
     # Task statuses
     "status_backlog": "Backlog",
     "status_todo": "To Do",

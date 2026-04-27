@@ -67,6 +67,9 @@ messages = {
     "task_assigned_title": "Тобі призначено нову задачу",
     "task_assigned_by": "Призначив(ла): {name}",
 
+    # Evening — plan confirmed notification to child
+    "plan_ready_for_child": "🌙 <b>{name} склав(ла) твій план на завтра!</b>\n\nПодивись → /today",
+
     # Task statuses
     "status_backlog": "Бэклог",
     "status_todo": "До виконання",

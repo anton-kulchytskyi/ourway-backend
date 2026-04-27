@@ -1,7 +1,10 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import date, datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 from app.database import get_db
 from app.core.deps import get_current_user, get_current_org_user
@@ -60,6 +63,23 @@ async def confirm_day(
     plan.confirmed_by = current_user.id
     await db.commit()
     await db.refresh(plan)
+
+    # Notify children when a parent confirms their own plan
+    if current_user.role in (UserRole.owner, UserRole.member) and target_id == current_user.id:
+        from app.services.notification_service import send_plan_ready_to_child
+        children_result = await db.execute(
+            select(User).where(
+                User.organization_id == current_user.organization_id,
+                User.role == UserRole.child,
+                User.is_active == True,  # noqa: E712
+            )
+        )
+        for child in children_result.scalars().all():
+            try:
+                await send_plan_ready_to_child(child, current_user.name)
+            except Exception:
+                logger.warning("Failed to notify child %s about confirmed plan", child.id)
+
     return plan
 
 

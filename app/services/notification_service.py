@@ -96,6 +96,15 @@ async def send_morning_briefing(user: User, db: AsyncSession) -> None:
     await _send(user.telegram_id, "\n".join(lines))
 
 
+async def send_plan_ready_to_child(child: User, parent_name: str) -> None:
+    """Notify child that their plan for tomorrow was confirmed by a parent."""
+    if not child.telegram_id or child.is_managed:
+        return
+    locale = child.locale or "en"
+    text = t("plan_ready_for_child", locale).format(name=parent_name)
+    await _send(child.telegram_id, text)
+
+
 async def send_task_assigned(task, assignee: User, assigner: User) -> None:
     """Notify a user that a task was assigned to them."""
     if not assignee.telegram_id:
