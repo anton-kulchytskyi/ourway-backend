@@ -67,6 +67,10 @@ messages = {
     "task_assigned_title": "New task assigned to you",
     "task_assigned_by": "Assigned by: {name}",
 
+    # Child activity notifications (sent to parent/creator)
+    "task_done_by_child": "✅ <b>{name}</b> completed:\n{title}",
+    "task_progress_by_child": "📊 <b>{name}</b> updated progress:\n{title} — {current}/{total}",
+
     # Evening — plan confirmed notification to child
     "plan_ready_for_child": "🌙 <b>{name} made your plan for tomorrow!</b>\n\nUse /today to see it.",
 

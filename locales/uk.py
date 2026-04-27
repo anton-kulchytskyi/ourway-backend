@@ -67,6 +67,10 @@ messages = {
     "task_assigned_title": "Тобі призначено нову задачу",
     "task_assigned_by": "Призначив(ла): {name}",
 
+    # Child activity notifications (sent to parent/creator)
+    "task_done_by_child": "✅ <b>{name}</b> виконав(ла):\n{title}",
+    "task_progress_by_child": "📊 <b>{name}</b> оновив(ла) прогрес:\n{title} — {current}/{total}",
+
     # Evening — plan confirmed notification to child
     "plan_ready_for_child": "🌙 <b>{name} склав(ла) твій план на завтра!</b>\n\nПодивись → /today",
 

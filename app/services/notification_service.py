@@ -8,6 +8,7 @@ import aiohttp
 from datetime import date
 
 from datetime import date as date_type
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -94,6 +95,32 @@ async def send_morning_briefing(user: User, db: AsyncSession) -> None:
     lines += ["", t("morning_footer", locale)]
 
     await _send(user.telegram_id, "\n".join(lines))
+
+
+async def send_child_task_activity(
+    task,
+    child: User,
+    db: AsyncSession,
+    *,
+    is_done: bool,
+) -> None:
+    """Notify the task creator when a child completes a task or updates progress."""
+    if not task.creator_id or task.creator_id == child.id:
+        return
+    result = await db.execute(select(User).where(User.id == task.creator_id))
+    creator = result.scalar_one_or_none()
+    if not creator or not creator.telegram_id:
+        return
+    locale = creator.locale or "en"
+    if is_done:
+        text = t("task_done_by_child", locale).format(name=child.name, title=task.title)
+    else:
+        current = task.progress_current or 0
+        total = task.progress_total or 0
+        text = t("task_progress_by_child", locale).format(
+            name=child.name, title=task.title, current=current, total=total
+        )
+    await _send(creator.telegram_id, text)
 
 
 async def send_plan_ready_to_child(child: User, parent_name: str) -> None:

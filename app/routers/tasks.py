@@ -6,11 +6,11 @@ from datetime import datetime
 from app.database import get_db
 from app.core.deps import get_current_org_user
 from app.core.i18n import t
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.task import Task
 from app.models.space import Space, SpaceMember, SpaceMemberRole
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
-from app.services.notification_service import send_task_assigned
+from app.services.notification_service import send_task_assigned, send_child_task_activity
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -132,6 +132,9 @@ async def update_task(
 
     task = await _get_task_or_404(task_id, current_user.id, db)
     prev_assignee_id = task.assignee_id
+    prev_status = task.status
+    prev_progress_current = task.progress_current
+
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(task, field, value)
     task.updated_at = datetime.utcnow()
@@ -148,6 +151,17 @@ async def update_task(
         assignee = assignee_result.scalar_one_or_none()
         if assignee:
             await send_task_assigned(task, assignee, current_user)
+
+    if current_user.role == UserRole.child:
+        status_done = task.status == "done" and prev_status != "done"
+        progress_changed = (
+            task.progress_current is not None
+            and task.progress_current != prev_progress_current
+        )
+        if status_done:
+            await send_child_task_activity(task, current_user, db, is_done=True)
+        elif progress_changed:
+            await send_child_task_activity(task, current_user, db, is_done=False)
 
     return task
 
