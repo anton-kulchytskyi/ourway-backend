@@ -16,6 +16,7 @@ messages = {
     # Tasks
     "task_not_found": "Задачу не знайдено",
     "viewers_cannot_modify_tasks": "Перегляд не дозволяє змінювати задачі",
+    "children_cannot_self_complete_tasks": "Для завершення задачі потрібне підтвердження батьків",
 
     # Gamification
     "reward_not_found": "Нагороду не знайдено",
@@ -37,6 +38,7 @@ messages = {
     "morning_greeting": "☀️ <b>Доброго ранку, {name}!</b>",
     "morning_free_day": "Сьогодні вільний день 🎉",
     "morning_footer": "Вперед! Ти можеш 💪",
+    "morning_kids_section": "👨‍👩‍👧 <b>Діти сьогодні:</b>",
     "task_overdue": "прострочено {days}д",
     "task_due_today": "сьогодні",
 
@@ -45,6 +47,14 @@ messages = {
     "evening_ritual_prompt_multi": "🌙 <b>Час планувати завтра з дітьми!</b>",
     "evening_ritual_body": "Перегляньте розклад і задачі разом.",
     "evening_reminder_solo": "🌙 <b>Час планувати завтра!</b>\nПеревір свій розклад і задачі.",
+    "evening_inprogress_header": "🔄 <b>В процесі сьогодні:</b>",
+    "evening_overdue_header": "🔥 <b>Прострочені:</b>",
+    "evening_tomorrow_events_header": "📅 <b>Події завтра:</b>",
+
+    # Child task done request
+    "task_done_request": "✋ <b>{name}</b> хоче завершити:\n<b>{title}</b>\n\nПідтвердити?",
+    "task_done_approve_btn": "✅ Підтвердити",
+    "task_done_reject_btn": "❌ Відхилити",
 
     # Bot — account linking
     "start_not_linked": (

@@ -100,7 +100,7 @@ async def evening_ritual_user_job(user_id: int) -> None:
             )
             children = list(children_result.scalars().all())
         try:
-            await send_evening_ritual_prompt(user, children)
+            await send_evening_ritual_prompt(user, children, db)
         except Exception:
             logger.exception("Failed to send evening ritual to user %s", user_id)
 

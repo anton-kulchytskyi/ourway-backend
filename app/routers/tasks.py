@@ -10,7 +10,7 @@ from app.models.user import User, UserRole
 from app.models.task import Task
 from app.models.space import Space, SpaceMember, SpaceMemberRole
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
-from app.services.notification_service import send_task_assigned, send_child_task_activity
+from app.services.notification_service import send_task_assigned, send_child_task_activity, send_task_done_request
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -135,7 +135,21 @@ async def update_task(
     prev_status = task.status
     prev_progress_current = task.progress_current
 
-    for field, value in body.model_dump(exclude_unset=True).items():
+    updates = body.model_dump(exclude_unset=True)
+
+    # Supervised and semi-autonomous children cannot self-complete tasks
+    if (
+        current_user.role == UserRole.child
+        and updates.get("status") == "done"
+        and task.status != "done"
+        and (getattr(current_user, "autonomy_level", None) or 1) < 3
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=t("children_cannot_self_complete_tasks", current_user.locale or "en"),
+        )
+
+    for field, value in updates.items():
         setattr(task, field, value)
     task.updated_at = datetime.utcnow()
     await db.commit()
@@ -164,6 +178,35 @@ async def update_task(
             await send_child_task_activity(task, current_user, db, is_done=False)
 
     return task
+
+
+@router.post("/{task_id}/request_done", status_code=200)
+async def request_task_done(
+    task_id: int,
+    current_user: User = Depends(get_current_org_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Child requests parent approval to mark task as done."""
+    if current_user.role != UserRole.child:
+        raise HTTPException(status_code=403, detail="Only children can request task completion")
+    if not current_user.telegram_id:
+        raise HTTPException(status_code=400, detail="Child must have Telegram connected")
+
+    task = await _get_task_or_404(task_id, current_user.id, db)
+
+    if task.status == "done":
+        raise HTTPException(status_code=400, detail="Task is already done")
+
+    if not task.creator_id:
+        raise HTTPException(status_code=400, detail="Task has no creator")
+
+    creator_result = await db.execute(select(User).where(User.id == task.creator_id))
+    creator = creator_result.scalar_one_or_none()
+    if not creator:
+        raise HTTPException(status_code=404, detail="Task creator not found")
+
+    await send_task_done_request(task, current_user, creator)
+    return {"status": "requested"}
 
 
 @router.delete("/{task_id}", status_code=204)

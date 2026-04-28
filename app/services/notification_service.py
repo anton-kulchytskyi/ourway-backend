@@ -5,13 +5,16 @@ Used by scheduled jobs (evening ritual, morning briefing).
 import os
 import logging
 import aiohttp
-from datetime import date
+from datetime import date, timedelta
 
 from datetime import date as date_type
-from sqlalchemy import select
+from sqlalchemy import select, any_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.models.task import Task
+from app.models.event import Event
+from app.models.schedule import Schedule
 from app.core.i18n import t
 from app.services.daily_plan_service import get_assembled_day
 
@@ -63,19 +66,73 @@ async def send_morning_briefing(user: User, db: AsyncSession) -> None:
 
     lines = [t("morning_greeting", locale).format(name=user.name), ""]
 
+    # Own schedule
     if day_view.schedule_items:
         for item in day_view.schedule_items:
             lines.append(f"🕐 {_fmt_time(item.time_start)} {item.title}")
 
+    # Children's schedules (for owners and members)
+    if user.role in (UserRole.owner, UserRole.member) and user.organization_id:
+        children_result = await db.execute(
+            select(User).where(
+                User.organization_id == user.organization_id,
+                User.role == UserRole.child,
+            )
+        )
+        children = children_result.scalars().all()
+
+        if children:
+            weekday = today.isoweekday()
+            any_child_schedule = False
+            child_lines = []
+            for child in children:
+                sched_result = await db.execute(
+                    select(Schedule).where(
+                        Schedule.user_id == child.id,
+                        weekday == any_(Schedule.weekdays),
+                        or_(Schedule.valid_from == None, Schedule.valid_from <= today),  # noqa: E711
+                        or_(Schedule.valid_until == None, Schedule.valid_until >= today),  # noqa: E711
+                    )
+                )
+                child_schedules = sorted(sched_result.scalars().all(), key=lambda s: s.time_start)
+                if child_schedules:
+                    any_child_schedule = True
+                    sched_str = ", ".join(
+                        f"{_fmt_time(s.time_start)} {s.title}" for s in child_schedules
+                    )
+                    child_lines.append(f"🧒 {child.name}: {sched_str}")
+
+            if any_child_schedule:
+                lines.append("")
+                lines.append(t("morning_kids_section", locale))
+                lines.extend(child_lines)
+
+    # Events today
     if day_view.events:
+        lines.append("")
         for event in day_view.events:
             time_str = f" {_fmt_time(event.time_start)}" if event.time_start else ""
             lines.append(f"📅{time_str} {event.title}")
 
-    if day_view.tasks:
-        sorted_tasks = sorted(day_view.tasks, key=lambda task: _task_urgency_key(task, today))
-        for task in sorted_tasks:
-            time_str = f" {_fmt_time(task.time_start)}" if task.time_start else ""
+    # All active tasks: todo + in_progress + overdue
+    tasks_result = await db.execute(
+        select(Task).where(
+            Task.assignee_id == user.id,
+            Task.status.notin_(["done", "blocked"]),
+        )
+    )
+    all_tasks = tasks_result.scalars().all()
+
+    morning_tasks = [
+        task for task in all_tasks
+        if task.status in ("in_progress", "todo")
+        or (task.due_date and task.due_date <= today)
+    ]
+    morning_tasks.sort(key=lambda task: _task_urgency_key(task, today))
+
+    if morning_tasks:
+        lines.append("")
+        for task in morning_tasks:
             due = task.due_date
             if due and due < today:
                 days_over = (today - due).days
@@ -85,16 +142,38 @@ async def send_morning_briefing(user: User, db: AsyncSession) -> None:
                 label = f" · {t('task_due_today', locale)}"
                 emoji = "🔥"
             else:
-                label = f" · {due.strftime('%b %d')}" if due else ""
-                emoji = "📝"
-            lines.append(f"{emoji}{time_str} {task.title}{label}")
+                emoji = "🔄" if task.status == "in_progress" else "📝"
+                label = ""
+            lines.append(f"{emoji} {task.title}{label}")
 
-    if not (day_view.schedule_items or day_view.events or day_view.tasks):
+    if not (day_view.schedule_items or day_view.events or morning_tasks):
         lines.append(t("morning_free_day", locale))
 
     lines += ["", t("morning_footer", locale)]
 
     await _send(user.telegram_id, "\n".join(lines))
+
+
+async def send_task_done_request(task, child: User, parent: User) -> None:
+    """Notify parent that a child wants to mark a task as done."""
+    if not parent.telegram_id:
+        return
+    locale = parent.locale or "en"
+    child_tg_id = child.telegram_id or 0
+    text = t("task_done_request", locale).format(name=child.name, title=task.title)
+    reply_markup = {
+        "inline_keyboard": [[
+            {
+                "text": t("task_done_approve_btn", locale),
+                "callback_data": f"task_approve:{task.id}:{child_tg_id}",
+            },
+            {
+                "text": t("task_done_reject_btn", locale),
+                "callback_data": f"task_reject:{task.id}:{child_tg_id}",
+            },
+        ]]
+    }
+    await _send(parent.telegram_id, text, reply_markup=reply_markup)
 
 
 async def send_child_task_activity(
@@ -147,18 +226,85 @@ async def send_task_assigned(task, assignee: User, assigner: User) -> None:
     await _send(assignee.telegram_id, text)
 
 
-async def send_evening_ritual_prompt(owner: User, children: list[User]) -> None:
-    """Remind owner/member to plan tomorrow. With children — family ritual; without — solo reminder."""
+async def send_evening_ritual_prompt(owner: User, children: list[User], db: AsyncSession) -> None:
+    """Remind owner/member to plan tomorrow. Includes in-progress tasks, overdue tasks, tomorrow events."""
     if not owner.telegram_id:
         return
     locale = owner.locale or "en"
+    today = date.today()
+    tomorrow = today + timedelta(days=1)
+
     if not children:
-        text = t("evening_reminder_solo", locale) + "\n\n👉 /tonight"
+        header = t("evening_reminder_solo", locale)
     elif len(children) == 1:
         header = t("evening_ritual_prompt", locale).format(name=children[0].name)
-        text = header + "\n\n" + t("evening_ritual_body", locale) + "\n\n👉 /tonight"
+        header += "\n\n" + t("evening_ritual_body", locale)
     else:
         names_list = "\n".join(f"• {c.name}" for c in children)
         header = t("evening_ritual_prompt_multi", locale) + "\n\n" + names_list
-        text = header + "\n\n" + t("evening_ritual_body", locale) + "\n\n👉 /tonight"
-    await _send(owner.telegram_id, text)
+        header += "\n\n" + t("evening_ritual_body", locale)
+
+    lines = [header]
+
+    # In-progress tasks
+    inprogress_result = await db.execute(
+        select(Task).where(
+            Task.assignee_id == owner.id,
+            Task.status == "in_progress",
+        )
+    )
+    inprogress_tasks = inprogress_result.scalars().all()
+
+    # Overdue tasks that are NOT in_progress (backlog/todo past due)
+    overdue_result = await db.execute(
+        select(Task).where(
+            Task.assignee_id == owner.id,
+            Task.due_date < today,
+            Task.status.notin_(["done", "blocked", "in_progress"]),
+        )
+    )
+    overdue_tasks = overdue_result.scalars().all()
+
+    if inprogress_tasks:
+        lines.append("")
+        lines.append(t("evening_inprogress_header", locale))
+        for task in inprogress_tasks:
+            due = task.due_date
+            if due and due < today:
+                days_over = (today - due).days
+                label = f" · {t('task_overdue', locale).format(days=days_over)}"
+            else:
+                label = ""
+            lines.append(f"🔄 {task.title}{label}")
+
+    if overdue_tasks:
+        lines.append("")
+        lines.append(t("evening_overdue_header", locale))
+        for task in sorted(overdue_tasks, key=lambda t_: t_.due_date):
+            days_over = (today - task.due_date).days
+            lines.append(f"🔥 {task.title} · {t('task_overdue', locale).format(days=days_over)}")
+
+    # Tomorrow's events
+    if owner.organization_id:
+        events_result = await db.execute(
+            select(Event).where(
+                Event.organization_id == owner.organization_id,
+                Event.date == tomorrow,
+            )
+        )
+        all_events = events_result.scalars().all()
+        tomorrow_events = [
+            e for e in all_events if owner.id in (e.participants or [])
+        ]
+        tomorrow_events.sort(key=lambda e: (e.time_start is None, e.time_start))
+
+        if tomorrow_events:
+            lines.append("")
+            lines.append(t("evening_tomorrow_events_header", locale))
+            for event in tomorrow_events:
+                time_str = f" {_fmt_time(event.time_start)}" if event.time_start else ""
+                lines.append(f"📅{time_str} {event.title}")
+
+    lines += ["", "👉 /tonight"]
+
+    await _send(owner.telegram_id, "\n".join(lines))

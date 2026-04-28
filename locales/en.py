@@ -16,6 +16,7 @@ messages = {
     # Tasks
     "task_not_found": "Task not found",
     "viewers_cannot_modify_tasks": "Viewers cannot modify tasks",
+    "children_cannot_self_complete_tasks": "Children need parent approval to complete tasks",
 
     # Gamification
     "reward_not_found": "Reward not found",
@@ -37,6 +38,7 @@ messages = {
     "morning_greeting": "☀️ <b>Good morning, {name}!</b>",
     "morning_free_day": "Today is a free day 🎉",
     "morning_footer": "Go for it! You can do it 💪",
+    "morning_kids_section": "👨‍👩‍👧 <b>Kids today:</b>",
     "task_overdue": "overdue {days}d",
     "task_due_today": "today",
 
@@ -45,6 +47,14 @@ messages = {
     "evening_ritual_prompt_multi": "🌙 <b>Time to plan tomorrow with your kids!</b>",
     "evening_ritual_body": "Review the schedule and tasks together.",
     "evening_reminder_solo": "🌙 <b>Time to plan tomorrow!</b>\nCheck your schedule and tasks.",
+    "evening_inprogress_header": "🔄 <b>In progress today:</b>",
+    "evening_overdue_header": "🔥 <b>Overdue:</b>",
+    "evening_tomorrow_events_header": "📅 <b>Tomorrow's events:</b>",
+
+    # Child task done request
+    "task_done_request": "✋ <b>{name}</b> wants to complete:\n<b>{title}</b>\n\nApprove?",
+    "task_done_approve_btn": "✅ Approve",
+    "task_done_reject_btn": "❌ Reject",
 
     # Bot — account linking
     "start_not_linked": (
