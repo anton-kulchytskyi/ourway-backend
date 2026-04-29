@@ -21,8 +21,15 @@ from app.services.daily_plan_service import get_assembled_day
 _PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
 
+def _to_date(val) -> date_type | None:
+    """Normalize datetime or date to date, handling DB returning datetime for date columns."""
+    if val is None:
+        return None
+    return val.date() if hasattr(val, "date") and callable(val.date) else val
+
+
 def _task_urgency_key(task, today: date_type):
-    due = task.due_date
+    due = _to_date(task.due_date)
     prio = _PRIORITY_ORDER.get(task.priority or "", 2)
     if due and due < today:
         return (0, due, prio)
@@ -126,14 +133,14 @@ async def send_morning_briefing(user: User, db: AsyncSession) -> None:
     morning_tasks = [
         task for task in all_tasks
         if task.status in ("in_progress", "todo")
-        or (task.due_date and task.due_date <= today)
+        or (_to_date(task.due_date) and _to_date(task.due_date) <= today)
     ]
     morning_tasks.sort(key=lambda task: _task_urgency_key(task, today))
 
     if morning_tasks:
         lines.append("")
         for task in morning_tasks:
-            due = task.due_date
+            due = _to_date(task.due_date)
             if due and due < today:
                 days_over = (today - due).days
                 label = f" · {t('task_overdue', locale).format(days=days_over)}"
@@ -269,7 +276,7 @@ async def send_evening_ritual_prompt(owner: User, children: list[User], db: Asyn
         lines.append("")
         lines.append(t("evening_inprogress_header", locale))
         for task in inprogress_tasks:
-            due = task.due_date
+            due = _to_date(task.due_date)
             if due and due < today:
                 days_over = (today - due).days
                 label = f" · {t('task_overdue', locale).format(days=days_over)}"
@@ -280,8 +287,8 @@ async def send_evening_ritual_prompt(owner: User, children: list[User], db: Asyn
     if overdue_tasks:
         lines.append("")
         lines.append(t("evening_overdue_header", locale))
-        for task in sorted(overdue_tasks, key=lambda t_: t_.due_date):
-            days_over = (today - task.due_date).days
+        for task in sorted(overdue_tasks, key=lambda t_: _to_date(t_.due_date)):
+            days_over = (today - _to_date(task.due_date)).days
             lines.append(f"🔥 {task.title} · {t('task_overdue', locale).format(days=days_over)}")
 
     # Tomorrow's events
