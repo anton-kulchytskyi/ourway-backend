@@ -23,6 +23,7 @@ class User(Base):
     locale: Mapped[str] = mapped_column(String(10), default="en", nullable=False)
     telegram_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, unique=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Child-specific fields
     autonomy_level: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1, 2, or 3

@@ -33,6 +33,7 @@ class UserResponse(BaseModel):
     timezone: str = "UTC"
     autonomy_level: int | None = None
     created_by_id: int | None = None
+    is_demo: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -66,5 +67,6 @@ class MeResponse(BaseModel):
     morning_brief_time: str
     evening_ritual_time: str
     autonomy_level: int | None = None
+    is_demo: bool = False
 
     model_config = {"from_attributes": True}

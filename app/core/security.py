@@ -34,6 +34,13 @@ def create_access_token(user_id: int) -> str:
                          timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
 
 
+def create_demo_access_token(user_id: int) -> str:
+    return _create_token(
+        {"sub": str(user_id), "type": "access", "is_demo": True},
+        timedelta(hours=4)
+    )
+
+
 def create_refresh_token(user_id: int) -> str:
     return _create_token({"sub": str(user_id), "type": "refresh"},
                          timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))

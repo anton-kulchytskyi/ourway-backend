@@ -9,10 +9,11 @@ from jose import JWTError
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.organization import Organization
-from app.models.space import Space
-from app.models.task import Task
+from app.models.space import Space, SpaceMember, SpaceMemberRole
+from app.models.task import Task, TaskStatus, TaskPriority
+from app.models.schedule import Schedule
 from app.schemas.user import LoginRequest, RefreshRequest, TokenResponse, UserResponse
-from app.core.security import verify_password, create_access_token, create_refresh_token, create_web_login_token, decode_token
+from app.core.security import verify_password, create_access_token, create_refresh_token, create_web_login_token, create_demo_access_token, decode_token
 from app.core.deps import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -192,6 +193,119 @@ async def web_login(
         access_token=create_access_token(user.id),
         refresh_token=create_refresh_token(user.id),
     )
+
+
+class DemoTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+@router.get("/demo", response_model=DemoTokenResponse)
+async def demo_login(db: AsyncSession = Depends(get_db)):
+    """Return a 4-hour read-only demo token. Creates demo data on first call."""
+    result = await db.execute(select(User).where(User.is_demo == True))  # noqa: E712
+    demo_user = result.scalar_one_or_none()
+
+    if demo_user is None:
+        demo_user = await _create_demo_data(db)
+    else:
+        await _refresh_demo_scheduled_dates(demo_user.id, db)
+
+    return DemoTokenResponse(access_token=create_demo_access_token(demo_user.id))
+
+
+async def _create_demo_data(db: AsyncSession) -> User:
+    import datetime as dt
+    from app.models.organization import Organization
+
+    org = Organization(name="Demo Family", default_locale="en")
+    db.add(org)
+    await db.flush()
+
+    owner = User(
+        name="Alex",
+        role=UserRole.owner,
+        locale="en",
+        is_demo=True,
+        organization_id=org.id,
+        timezone="Europe/Warsaw",
+    )
+    db.add(owner)
+    await db.flush()
+
+    sonya = User(
+        name="Sonya",
+        role=UserRole.child,
+        locale="en",
+        is_managed=True,
+        managed_by=owner.id,
+        autonomy_level=1,
+        created_by_id=owner.id,
+        organization_id=org.id,
+    )
+    mark = User(
+        name="Mark",
+        role=UserRole.child,
+        locale="en",
+        is_managed=True,
+        managed_by=owner.id,
+        autonomy_level=1,
+        created_by_id=owner.id,
+        organization_id=org.id,
+    )
+    db.add(sonya)
+    db.add(mark)
+    await db.flush()
+
+    space = Space(name="Family", emoji="🏡", organization_id=org.id)
+    db.add(space)
+    await db.flush()
+
+    db.add(SpaceMember(space_id=space.id, user_id=owner.id, role=SpaceMemberRole.owner))
+    db.add(SpaceMember(space_id=space.id, user_id=sonya.id, role=SpaceMemberRole.editor, auto_add_to_child_day=True))
+    db.add(SpaceMember(space_id=space.id, user_id=mark.id, role=SpaceMemberRole.editor, auto_add_to_child_day=True))
+
+    db.add(Schedule(user_id=sonya.id, title="🏫 School", weekdays=[1, 2, 3, 4, 5],
+                    time_start=dt.time(8, 0), time_end=dt.time(14, 0), created_by=owner.id))
+    db.add(Schedule(user_id=sonya.id, title="⚽ Football", weekdays=[2, 4],
+                    time_start=dt.time(16, 0), time_end=dt.time(17, 30), created_by=owner.id))
+    db.add(Schedule(user_id=mark.id, title="🎨 Art class", weekdays=[1, 3],
+                    time_start=dt.time(15, 0), time_end=dt.time(16, 30), created_by=owner.id))
+
+    today = dt.date.today()
+
+    db.add(Task(title="Do homework", status=TaskStatus.in_progress, priority=TaskPriority.high,
+                points=10, space_id=space.id, creator_id=owner.id, assignee_id=sonya.id))
+    db.add(Task(title="Clean your room", status=TaskStatus.todo, priority=TaskPriority.medium,
+                points=5, space_id=space.id, creator_id=owner.id, assignee_id=mark.id))
+    db.add(Task(title="Read a chapter", status=TaskStatus.in_progress, priority=TaskPriority.medium,
+                points=5, space_id=space.id, creator_id=owner.id, assignee_id=sonya.id,
+                progress_current=3, progress_total=10))
+    db.add(Task(title="Call the doctor", status=TaskStatus.todo, priority=TaskPriority.high,
+                scheduled_date=today, space_id=space.id, creator_id=owner.id, assignee_id=owner.id))
+    db.add(Task(title="Plan weekend trip", status=TaskStatus.todo, priority=TaskPriority.medium,
+                scheduled_date=today, space_id=space.id, creator_id=owner.id, assignee_id=owner.id))
+    db.add(Task(title="Buy school supplies", status=TaskStatus.backlog, priority=TaskPriority.low,
+                space_id=space.id, creator_id=owner.id, assignee_id=owner.id))
+    db.add(Task(title="Buy groceries", status=TaskStatus.done, priority=TaskPriority.low,
+                space_id=space.id, creator_id=owner.id, assignee_id=owner.id))
+
+    await db.commit()
+    await db.refresh(owner)
+    return owner
+
+
+async def _refresh_demo_scheduled_dates(owner_id: int, db: AsyncSession) -> None:
+    import datetime as dt
+    from sqlalchemy import update as sql_update
+
+    today = dt.date.today()
+    await db.execute(
+        sql_update(Task)
+        .where(Task.assignee_id == owner_id, Task.status != TaskStatus.done)
+        .values(scheduled_date=today)
+    )
+    await db.commit()
 
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
