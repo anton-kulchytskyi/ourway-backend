@@ -234,7 +234,7 @@ async def send_task_assigned(task, assignee: User, assigner: User) -> None:
 
 
 async def send_evening_ritual_prompt(owner: User, children: list[User], db: AsyncSession) -> None:
-    """Remind owner/member to plan tomorrow. Includes in-progress tasks, overdue tasks, tomorrow events."""
+    """Remind owner/member to plan tomorrow. Short digest — full details available via /tonight."""
     if not owner.telegram_id:
         return
     locale = owner.locale or "en"
@@ -245,53 +245,32 @@ async def send_evening_ritual_prompt(owner: User, children: list[User], db: Asyn
         header = t("evening_reminder_solo", locale)
     elif len(children) == 1:
         header = t("evening_ritual_prompt", locale).format(name=children[0].name)
-        header += "\n\n" + t("evening_ritual_body", locale)
     else:
-        names_list = "\n".join(f"• {c.name}" for c in children)
-        header = t("evening_ritual_prompt_multi", locale) + "\n\n" + names_list
-        header += "\n\n" + t("evening_ritual_body", locale)
+        header = t("evening_ritual_prompt_multi", locale)
 
-    lines = [header]
+    lines = [header, ""]
 
-    # In-progress tasks
-    inprogress_result = await db.execute(
+    # Count active tasks and overdue
+    active_result = await db.execute(
         select(Task).where(
             Task.assignee_id == owner.id,
-            Task.status == "in_progress",
+            Task.status.notin_(["done"]),
         )
     )
-    inprogress_tasks = inprogress_result.scalars().all()
-
-    # Overdue tasks that are NOT in_progress (backlog/todo past due)
-    overdue_result = await db.execute(
-        select(Task).where(
-            Task.assignee_id == owner.id,
-            Task.due_date < today,
-            Task.status.notin_(["done", "blocked", "in_progress"]),
-        )
+    active_tasks = active_result.scalars().all()
+    active_count = len(active_tasks)
+    overdue_count = sum(
+        1 for task in active_tasks
+        if _to_date(task.due_date) and _to_date(task.due_date) < today
     )
-    overdue_tasks = overdue_result.scalars().all()
 
-    if inprogress_tasks:
-        lines.append("")
-        lines.append(t("evening_inprogress_header", locale))
-        for task in inprogress_tasks:
-            due = _to_date(task.due_date)
-            if due and due < today:
-                days_over = (today - due).days
-                label = f" · {t('task_overdue', locale).format(days=days_over)}"
-            else:
-                label = ""
-            lines.append(f"🔄 {task.title}{label}")
+    if active_count > 0:
+        task_line = t("evening_summary_tasks", locale).format(n=active_count)
+        if overdue_count > 0:
+            task_line += t("evening_summary_tasks_overdue", locale).format(n=overdue_count)
+        lines.append(task_line)
 
-    if overdue_tasks:
-        lines.append("")
-        lines.append(t("evening_overdue_header", locale))
-        for task in sorted(overdue_tasks, key=lambda t_: _to_date(t_.due_date)):
-            days_over = (today - _to_date(task.due_date)).days
-            lines.append(f"🔥 {task.title} · {t('task_overdue', locale).format(days=days_over)}")
-
-    # Tomorrow's events
+    # Count tomorrow's events
     if owner.organization_id:
         events_result = await db.execute(
             select(Event).where(
@@ -300,18 +279,10 @@ async def send_evening_ritual_prompt(owner: User, children: list[User], db: Asyn
             )
         )
         all_events = events_result.scalars().all()
-        tomorrow_events = [
-            e for e in all_events if owner.id in (e.participants or [])
-        ]
-        tomorrow_events.sort(key=lambda e: (e.time_start is None, e.time_start))
+        event_count = sum(1 for e in all_events if owner.id in (e.participants or []))
+        if event_count > 0:
+            lines.append(t("evening_summary_events", locale).format(n=event_count))
 
-        if tomorrow_events:
-            lines.append("")
-            lines.append(t("evening_tomorrow_events_header", locale))
-            for event in tomorrow_events:
-                time_str = f" {_fmt_time(event.time_start)}" if event.time_start else ""
-                lines.append(f"📅{time_str} {event.title}")
-
-    lines += ["", "👉 /tonight"]
+    lines += ["", t("evening_summary_footer", locale)]
 
     await _send(owner.telegram_id, "\n".join(lines))

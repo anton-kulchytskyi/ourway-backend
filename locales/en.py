@@ -46,10 +46,14 @@ messages = {
     "evening_ritual_prompt": "🌙 <b>Time to plan tomorrow with {name}!</b>",
     "evening_ritual_prompt_multi": "🌙 <b>Time to plan tomorrow with your kids!</b>",
     "evening_ritual_body": "Review the schedule and tasks together.",
-    "evening_reminder_solo": "🌙 <b>Time to plan tomorrow!</b>\nCheck your schedule and tasks.",
+    "evening_reminder_solo": "🌙 <b>Time to plan tomorrow!</b>",
     "evening_inprogress_header": "🔄 <b>In progress today:</b>",
     "evening_overdue_header": "🔥 <b>Overdue:</b>",
     "evening_tomorrow_events_header": "📅 <b>Tomorrow's events:</b>",
+    "evening_summary_tasks": "📋 Active tasks: {n}",
+    "evening_summary_tasks_overdue": ", overdue: {n} 🔥",
+    "evening_summary_events": "📅 Events tomorrow: {n}",
+    "evening_summary_footer": "👉 /tonight — full overview",
 
     # Child task done request
     "task_done_request": "✋ <b>{name}</b> wants to complete:\n<b>{title}</b>\n\nApprove?",

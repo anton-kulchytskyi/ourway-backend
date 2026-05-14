@@ -46,10 +46,14 @@ messages = {
     "evening_ritual_prompt": "🌙 <b>Час планувати завтра з {name}!</b>",
     "evening_ritual_prompt_multi": "🌙 <b>Час планувати завтра з дітьми!</b>",
     "evening_ritual_body": "Перегляньте розклад і задачі разом.",
-    "evening_reminder_solo": "🌙 <b>Час планувати завтра!</b>\nПеревір свій розклад і задачі.",
+    "evening_reminder_solo": "🌙 <b>Час планувати завтра!</b>",
     "evening_inprogress_header": "🔄 <b>В процесі сьогодні:</b>",
     "evening_overdue_header": "🔥 <b>Прострочені:</b>",
     "evening_tomorrow_events_header": "📅 <b>Події завтра:</b>",
+    "evening_summary_tasks": "📋 Задач активних: {n}",
+    "evening_summary_tasks_overdue": ", прострочених: {n} 🔥",
+    "evening_summary_events": "📅 Завтра подій: {n}",
+    "evening_summary_footer": "👉 /tonight — повний огляд",
 
     # Child task done request
     "task_done_request": "✋ <b>{name}</b> хоче завершити:\n<b>{title}</b>\n\nПідтвердити?",
