@@ -233,6 +233,36 @@ async def send_task_assigned(task, assignee: User, assigner: User) -> None:
     await _send(assignee.telegram_id, text)
 
 
+async def send_event_reminder(event_id: int, db: AsyncSession) -> None:
+    """Send event reminder to all participants with a telegram_id."""
+    from app.models.event import Event
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalar_one_or_none()
+    if not event:
+        return
+
+    minutes = event.remind_before_min or 60
+    participants = event.participants or []
+    if not participants:
+        return
+
+    users_result = await db.execute(
+        select(User).where(
+            User.id.in_(participants),
+            User.telegram_id != None,  # noqa: E711
+            User.is_active == True,    # noqa: E712
+        )
+    )
+    users = users_result.scalars().all()
+
+    for user in users:
+        locale = user.locale or "en"
+        text = t("event_reminder", locale).format(title=event.title, minutes=minutes)
+        if event.time_start:
+            text += f"\n🕐 {_fmt_time(event.time_start)}"
+        await _send(user.telegram_id, text)
+
+
 async def send_evening_ritual_prompt(owner: User, children: list[User], db: AsyncSession) -> None:
     """Remind owner/member to plan tomorrow. Short digest — full details available via /tonight."""
     if not owner.telegram_id:

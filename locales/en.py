@@ -88,6 +88,9 @@ messages = {
     # Evening — plan confirmed notification to child
     "plan_ready_for_child": "🌙 <b>{name} made your plan for tomorrow!</b>\n\nUse /today to see it.",
 
+    # Event reminder notification
+    "event_reminder": "🔔 Reminder: <b>{title}</b> starts in {minutes} min",
+
     # Task statuses
     "status_backlog": "Backlog",
     "status_todo": "To Do",

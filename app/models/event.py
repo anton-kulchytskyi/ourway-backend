@@ -20,6 +20,7 @@ class Event(Base):
     find_before: Mapped[date | None] = mapped_column(Date, nullable=True)          # deadline for scheduling
     participants: Mapped[list[int]] = mapped_column(ARRAY(Integer), nullable=False, default=list)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    remind_before_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     organization: Mapped["Organization"] = relationship()  # noqa: F821
     creator: Mapped["User | None"] = relationship()  # noqa: F821

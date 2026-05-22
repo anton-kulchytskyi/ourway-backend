@@ -12,6 +12,7 @@ class EventCreate(BaseModel):
     duration_min: int | None = None
     find_before: datetime.date | None = None
     participants: list[int] = []
+    remind_before_min: int | None = None
 
     @model_validator(mode="after")
     def check_flexible_fields(self) -> "EventCreate":
@@ -29,6 +30,7 @@ class EventUpdate(BaseModel):
     duration_min: int | None = None
     find_before: datetime.date | None = None
     participants: list[int] | None = None
+    remind_before_min: int | None = None
 
 
 class EventResponse(BaseModel):
@@ -43,5 +45,6 @@ class EventResponse(BaseModel):
     find_before: datetime.date | None
     participants: list[int]
     created_by: int | None
+    remind_before_min: int | None
 
     model_config = {"from_attributes": True}

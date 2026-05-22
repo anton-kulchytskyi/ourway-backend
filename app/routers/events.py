@@ -5,6 +5,7 @@ from datetime import date
 
 from app.database import get_db
 from app.core.deps import get_current_org_user
+from app.core.scheduler import ensure_event_reminder_job, remove_event_reminder_job
 from app.models.user import User, UserRole
 from app.models.event import Event
 from app.schemas.event import EventCreate, EventUpdate, EventResponse
@@ -64,10 +65,12 @@ async def create_event(
         find_before=body.find_before,
         participants=body.participants,
         created_by=current_user.id,
+        remind_before_min=body.remind_before_min,
     )
     db.add(event)
     await db.commit()
     await db.refresh(event)
+    ensure_event_reminder_job(event, current_user.timezone or "UTC")
     return event
 
 
@@ -86,6 +89,7 @@ async def update_event(
         setattr(event, field, value)
     await db.commit()
     await db.refresh(event)
+    ensure_event_reminder_job(event, current_user.timezone or "UTC")
     return event
 
 
@@ -99,5 +103,6 @@ async def delete_event(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Children cannot delete events")
 
     event = await _get_event_or_404(event_id, current_user, db)
+    remove_event_reminder_job(event_id)
     await db.delete(event)
     await db.commit()

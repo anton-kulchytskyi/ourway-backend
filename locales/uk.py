@@ -88,6 +88,9 @@ messages = {
     # Evening — plan confirmed notification to child
     "plan_ready_for_child": "🌙 <b>{name} склав(ла) твій план на завтра!</b>\n\nПодивись → /today",
 
+    # Event reminder notification
+    "event_reminder": "🔔 Нагадування: <b>{title}</b> починається через {minutes} хв",
+
     # Task statuses
     "status_backlog": "Бэклог",
     "status_todo": "До виконання",
