@@ -9,7 +9,7 @@ from app.models.user import User, UserRole
 from app.models.space import SpaceMember, SpaceMemberRole
 from app.schemas.user import UserResponse, CreateChildRequest, UpdateChildRequest, UpdateMeRequest, MeResponse
 import datetime as dt
-from app.core.security import hash_password, create_telegram_link_token, decode_token, create_child_tg_token, verify_child_tg_token
+from app.core.security import hash_password, create_telegram_link_token, decode_token, create_child_tg_token, verify_child_tg_token, create_web_login_token
 from app.models.organization import Organization
 from app.core.deps import get_current_user
 from jose import JWTError
@@ -237,6 +237,40 @@ async def delete_child(
 
     await db.delete(child)
     await db.commit()
+
+
+class ChildWebLoginLinkResponse(BaseModel):
+    token: str
+    path: str  # relative to the frontend origin, e.g. /api/auth/callback?token=...
+    expires_in: int  # seconds
+
+
+@router.post("/children/{child_id}/web-login-link", response_model=ChildWebLoginLinkResponse)
+async def child_web_login_link(
+    child_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Owner generates a short-lived web login link for their child (e.g. tablet PWA, no Telegram).
+    Works for managed children too: is_managed only affects Telegram behaviour."""
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owners can create child login links")
+
+    result = await db.execute(
+        select(User).where(User.id == child_id, User.organization_id == current_user.organization_id, User.role == UserRole.child)
+    )
+    child = result.scalar_one_or_none()
+    if not child:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Child not found")
+    if not child.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Child account is disabled")
+
+    token = create_web_login_token(child.id)
+    return ChildWebLoginLinkResponse(
+        token=token,
+        path=f"/api/auth/callback?token={token}",
+        expires_in=15 * 60,
+    )
 
 
 class BotCreateChildRequest(BaseModel):
